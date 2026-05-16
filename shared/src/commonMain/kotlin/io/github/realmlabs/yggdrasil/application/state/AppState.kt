@@ -129,6 +129,9 @@ class YggdrasilStateHolder(
         val activeConnectionId = state.activeConnectionId?.takeIf { activeId ->
             connections.any { it.id == activeId }
         }
+        if (activeConnectionId == null) {
+            state.activeConnectionId?.let { zNodeRepository?.closeConnection(it) }
+        }
 
         state = state.copy(
             connections = connections,
@@ -143,6 +146,9 @@ class YggdrasilStateHolder(
 
     fun selectConnection(connectionId: ConnectionId) {
         if (state.connections.none { it.id == connectionId }) return
+        state.activeConnectionId
+            ?.takeIf { it != connectionId }
+            ?.let { zNodeRepository?.closeConnection(it) }
 
         state = state.copy(
             activeConnectionId = connectionId,
@@ -167,6 +173,9 @@ class YggdrasilStateHolder(
 
         when (val result = repository.saveProfile(profile)) {
             is OperationResult.Success -> {
+                state.activeConnectionId
+                    ?.takeIf { it != profile.id }
+                    ?.let { zNodeRepository?.closeConnection(it) }
                 val nextConnections = state.connections
                     .filterNot { it.id == profile.id }
                     .plus(profile)
@@ -193,6 +202,7 @@ class YggdrasilStateHolder(
 
         when (val result = repository.deleteProfile(connectionId)) {
             is OperationResult.Success -> {
+                zNodeRepository?.closeConnection(connectionId)
                 state = state.copy(
                     connections = state.connections.filterNot { it.id == connectionId },
                     activeConnectionId = state.activeConnectionId?.takeIf { it != connectionId },

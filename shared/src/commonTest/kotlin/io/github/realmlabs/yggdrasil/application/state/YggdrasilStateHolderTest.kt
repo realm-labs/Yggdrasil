@@ -32,7 +32,12 @@ class YggdrasilStateHolderTest {
 
     @Test
     fun setConnectionsClearsRemovedActiveConnection() {
+        val repository = FakeZNodeRepository(
+            children = emptyList(),
+            detail = ZNodeDetail(path = ZNodePath.Root),
+        )
         val holder = YggdrasilStateHolder(
+            zNodeRepository = repository,
             initialState = AppState(
                 connections = listOf(
                     ConnectionProfile(
@@ -50,6 +55,39 @@ class YggdrasilStateHolderTest {
 
         assertNull(holder.state.activeConnectionId)
         assertIs<NodeSelectionState.None>(holder.state.nodeSelection)
+        assertEquals(listOf(ConnectionId("local")), repository.closedConnectionIds)
+    }
+
+    @Test
+    fun selectConnectionClosesPreviousZNodeSession() {
+        val local = ConnectionProfile(
+            id = ConnectionId("local"),
+            name = "Local",
+            connectionString = "localhost:2181",
+        )
+        val staging = ConnectionProfile(
+            id = ConnectionId("staging"),
+            name = "Staging",
+            connectionString = "staging:2181",
+        )
+        val repository = FakeZNodeRepository(
+            children = emptyList(),
+            detail = ZNodeDetail(path = ZNodePath.Root),
+        )
+        val holder = YggdrasilStateHolder(
+            zNodeRepository = repository,
+            initialState = AppState(
+                connections = listOf(local, staging),
+                activeConnectionId = local.id,
+            ),
+        )
+
+        runBlocking {
+            holder.selectConnection(staging.id)
+        }
+
+        assertEquals(staging.id, holder.state.activeConnectionId)
+        assertEquals(listOf(local.id), repository.closedConnectionIds)
     }
 
     @Test
@@ -244,6 +282,11 @@ class YggdrasilStateHolderTest {
         var updatedDataRequest: UpdateZNodeDataRequest? = null
         var deleteRequest: DeleteZNodeRequest? = null
         var updatedAclRequest: UpdateZNodeAclRequest? = null
+        val closedConnectionIds = mutableListOf<ConnectionId>()
+
+        override fun closeConnection(connectionId: ConnectionId) {
+            closedConnectionIds += connectionId
+        }
 
         override suspend fun loadChildren(
             profile: ConnectionProfile,

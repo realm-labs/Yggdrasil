@@ -4,6 +4,8 @@ import io.github.realmlabs.yggdrasil.domain.model.*
 import kotlinx.coroutines.flow.Flow
 
 interface ZNodeRepository {
+    fun closeConnection(connectionId: ConnectionId)
+
     suspend fun loadChildren(
         profile: ConnectionProfile,
         path: ZNodePath,

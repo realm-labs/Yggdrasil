@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import org.apache.curator.x.async.AsyncCuratorFramework
 import org.apache.curator.x.async.WatchMode
 import org.apache.curator.x.async.api.DeleteOption
@@ -18,12 +17,22 @@ import org.apache.zookeeper.data.ACL
 import org.apache.zookeeper.data.Id
 import org.apache.zookeeper.data.Stat
 import java.util.concurrent.CompletionStage
-import kotlin.time.Duration.Companion.milliseconds
+import java.util.concurrent.atomic.AtomicBoolean
 
 class CuratorZNodeRepository(
     private val connectionTimeoutMillis: Int = 5_000,
     private val sessionTimeoutMillis: Int = 10_000,
 ) : ZNodeRepository {
+    private val clientLock = Any()
+    private val clients = mutableMapOf<ConnectionId, AsyncCuratorClient>()
+
+    override fun closeConnection(connectionId: ConnectionId) {
+        val client = synchronized(clientLock) {
+            clients.remove(connectionId)
+        }
+        client?.close()
+    }
+
     override suspend fun loadChildren(
         profile: ConnectionProfile,
         path: ZNodePath,
@@ -139,11 +148,8 @@ class CuratorZNodeRepository(
         path: ZNodePath,
     ): Flow<ZNodeWatchEvent> =
         callbackFlow {
-            val client = createAsyncCuratorClient(
-                profile = profile,
-                connectionTimeoutMillis = connectionTimeoutMillis,
-                sessionTimeoutMillis = sessionTimeoutMillis,
-            )
+            val client = getOrCreateClient(profile)
+            val active = AtomicBoolean(true)
 
             fun mapEvent(event: WatchedEvent): ZNodeWatchEvent =
                 ZNodeWatchEvent(
@@ -157,14 +163,19 @@ class CuratorZNodeRepository(
                 watchPath: ZNodePath,
                 eventMapper: (WatchedEvent) -> ZNodeWatchEvent,
             ) {
+                if (!active.get()) return
                 val watched = asyncClient.with(WatchMode.successOnly).watched()
 
                 fun CompletionStage<WatchedEvent>.sendAndRegisterNextFromLocal() {
                     thenAccept { event ->
-                        trySend(eventMapper(event))
-                        registerWatches(asyncClient, watchPath, eventMapper)
+                        if (active.get()) {
+                            trySend(eventMapper(event))
+                            registerWatches(asyncClient, watchPath, eventMapper)
+                        }
                     }.exceptionally { exception ->
-                        close(exception)
+                        if (active.get()) {
+                            close(exception)
+                        }
                         null
                     }
                 }
@@ -182,16 +193,16 @@ class CuratorZNodeRepository(
             }
 
             try {
-                withTimeout(connectionTimeoutMillis.toLong().milliseconds) {
-                    client.async.checkExists().forPath("/").await()
+                when (val connectionResult = client.awaitConnected(profile, connectionTimeoutMillis)) {
+                    is OperationResult.Failure -> close(IllegalStateException(connectionResult.error.message))
+                    is OperationResult.Success -> registerWatches(client.async, path, ::mapEvent)
                 }
-                registerWatches(client.async, path, ::mapEvent)
             } catch (exception: Exception) {
                 close(exception)
             }
 
             awaitClose {
-                client.close()
+                active.set(false)
             }
         }.flowOn(Dispatchers.IO)
 
@@ -200,15 +211,15 @@ class CuratorZNodeRepository(
         block: suspend (AsyncCuratorFramework) -> OperationResult<T>,
     ): OperationResult<T> =
         withContext(Dispatchers.IO) {
-            val client = createAsyncCuratorClient(
-                profile = profile,
-                connectionTimeoutMillis = connectionTimeoutMillis,
-                sessionTimeoutMillis = sessionTimeoutMillis,
-            )
+            val client = getOrCreateClient(profile)
 
             try {
                 when (val connectionResult = client.awaitConnected(profile, connectionTimeoutMillis)) {
-                    is OperationResult.Failure -> return@withContext connectionResult
+                    is OperationResult.Failure -> {
+                        closeConnection(profile.id)
+                        return@withContext connectionResult
+                    }
+
                     is OperationResult.Success -> Unit
                 }
                 block(client.async)
@@ -240,8 +251,17 @@ class CuratorZNodeRepository(
                 OperationResult.Failure(
                     AppError.ZooKeeper("ZooKeeper operation failed.", exception.message),
                 )
-            } finally {
-                client.close()
+            }
+        }
+
+    private fun getOrCreateClient(profile: ConnectionProfile): AsyncCuratorClient =
+        synchronized(clientLock) {
+            clients.getOrPut(profile.id) {
+                createAsyncCuratorClient(
+                    profile = profile,
+                    connectionTimeoutMillis = connectionTimeoutMillis,
+                    sessionTimeoutMillis = sessionTimeoutMillis,
+                )
             }
         }
 }
