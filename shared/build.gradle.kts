@@ -23,6 +23,8 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.curator.framework)
+            implementation(libs.curator.x.async)
+            implementation(libs.kotlinx.coroutinesJdk8)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

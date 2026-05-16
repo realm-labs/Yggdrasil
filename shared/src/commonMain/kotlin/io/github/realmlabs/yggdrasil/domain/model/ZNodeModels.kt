@@ -13,7 +13,29 @@ data class ZNodeDetail(
     val stat: ZNodeStat = ZNodeStat(),
     val detectedFormat: ZNodeDataFormat = ZNodeDataFormat.Unknown,
     val acl: List<ZNodeAcl> = emptyList(),
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ZNodeDetail) return false
+
+        if (path != other.path) return false
+        if (!data.contentEquals(other.data)) return false
+        if (stat != other.stat) return false
+        if (detectedFormat != other.detectedFormat) return false
+        if (acl != other.acl) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = path.hashCode()
+        result = 31 * result + data.contentHashCode()
+        result = 31 * result + stat.hashCode()
+        result = 31 * result + detectedFormat.hashCode()
+        result = 31 * result + acl.hashCode()
+        return result
+    }
+}
 
 data class ZNodeStat(
     val version: Int = 0,
@@ -50,5 +72,20 @@ enum class ZNodeDataFormat {
     Properties,
     Base64,
     Hex,
+    Unknown,
+}
+
+data class ZNodeWatchEvent(
+    val path: ZNodePath,
+    val type: ZNodeWatchEventType,
+    val receivedAtMillis: Long,
+)
+
+enum class ZNodeWatchEventType {
+    NodeCreated,
+    NodeDeleted,
+    NodeDataChanged,
+    ChildrenChanged,
+    ConnectionStateChanged,
     Unknown,
 }

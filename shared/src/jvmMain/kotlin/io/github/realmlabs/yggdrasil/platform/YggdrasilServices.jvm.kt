@@ -1,6 +1,7 @@
 package io.github.realmlabs.yggdrasil.platform
 
 import io.github.realmlabs.yggdrasil.storage.LocalConnectionProfileRepository
+import io.github.realmlabs.yggdrasil.zookeeper.CuratorZNodeRepository
 import io.github.realmlabs.yggdrasil.zookeeper.CuratorZooKeeperConnectionTester
 import java.nio.file.Path
 
@@ -10,5 +11,6 @@ actual fun createYggdrasilServices(): YggdrasilServices {
     return YggdrasilServices(
         connectionProfileRepository = LocalConnectionProfileRepository(configDirectory.resolve("connections.json")),
         zooKeeperConnectionTester = CuratorZooKeeperConnectionTester(),
+        zNodeRepository = CuratorZNodeRepository(),
     )
 }

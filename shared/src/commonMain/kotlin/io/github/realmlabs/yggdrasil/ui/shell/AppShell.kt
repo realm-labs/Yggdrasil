@@ -1,29 +1,9 @@
 package io.github.realmlabs.yggdrasil.ui.shell
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,13 +18,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
-import io.github.realmlabs.yggdrasil.application.state.NodeSelectionState
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionId
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionMode
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfile
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfileDraft
-import io.github.realmlabs.yggdrasil.domain.model.OperationResult
-import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
+import io.github.realmlabs.yggdrasil.application.state.ZNodeChildrenState
+import io.github.realmlabs.yggdrasil.application.state.ZNodeDetailState
+import io.github.realmlabs.yggdrasil.domain.model.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlin.text.decodeToString
+import kotlin.text.padStart
+import kotlin.text.take
+import kotlin.text.toString
 
 @Composable
 fun AppShell(
@@ -54,6 +36,7 @@ fun AppShell(
     onDeleteConnection: (ConnectionId) -> Unit,
     onTestConnection: (ConnectionId) -> Unit,
     onSelectPath: (ZNodePath) -> Unit,
+    onRefreshSelectedPath: () -> Unit,
     onClearSelection: () -> Unit,
 ) {
     var showConnectionDialog by remember { mutableStateOf(false) }
@@ -79,6 +62,7 @@ fun AppShell(
                 TreePane(
                     state = state,
                     onSelectPath = onSelectPath,
+                    onRefreshSelectedPath = onRefreshSelectedPath,
                     modifier = Modifier.width(300.dp).fillMaxHeight(),
                 )
                 DividerLine(vertical = true)
@@ -376,11 +360,20 @@ private fun ModeButton(
 private fun TreePane(
     state: AppState,
     onSelectPath: (ZNodePath) -> Unit,
+    onRefreshSelectedPath: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Panel(
         title = "Znodes",
         modifier = modifier,
+        trailing = {
+            OutlinedButton(
+                onClick = onRefreshSelectedPath,
+                enabled = state.selectedPath != null,
+            ) {
+                Text("Refresh")
+            }
+        },
     ) {
         val activeConnection = state.activeConnection
         if (activeConnection == null) {
@@ -391,31 +384,99 @@ private fun TreePane(
             return@Panel
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            TreeRow(
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            TreeNodeRow(
                 path = ZNodePath.Root,
-                selected = state.nodeSelection is NodeSelectionState.SelectedPath &&
-                    state.nodeSelection.path == ZNodePath.Root,
+                depth = 0,
+                selected = state.selectedPath == ZNodePath.Root,
+                childrenState = state.znodeChildren[ZNodePath.Root],
                 onClick = { onSelectPath(ZNodePath.Root) },
             )
-            EmptyPanelMessage(
-                title = "No children loaded",
-                body = "Refresh the selected path after the connection is online.",
+            TreeChildren(
+                state = state,
+                parent = ZNodePath.Root,
+                depth = 1,
+                onSelectPath = onSelectPath,
             )
         }
     }
 }
 
 @Composable
-private fun TreeRow(
+private fun TreeChildren(
+    state: AppState,
+    parent: ZNodePath,
+    depth: Int,
+    onSelectPath: (ZNodePath) -> Unit,
+) {
+    when (val childrenState = state.znodeChildren[parent]) {
+        null,
+        ZNodeChildrenState.Unloaded -> if (parent == ZNodePath.Root) {
+            TreeStateMessage(
+                text = "Select / to load children",
+                depth = depth,
+            )
+        }
+
+        ZNodeChildrenState.Loading -> TreeStateMessage(
+            text = "Loading...",
+            depth = depth,
+        )
+
+        is ZNodeChildrenState.Failed -> TreeStateMessage(
+            text = childrenState.error.message,
+            depth = depth,
+            isError = true,
+        )
+
+        is ZNodeChildrenState.Loaded -> {
+            if (childrenState.children.isEmpty()) {
+                TreeStateMessage(
+                    text = "No children",
+                    depth = depth,
+                )
+            }
+            childrenState.children.forEach { child ->
+                TreeNodeRow(
+                    path = child.path,
+                    depth = depth,
+                    selected = state.selectedPath == child.path,
+                    childrenState = state.znodeChildren[child.path],
+                    onClick = { onSelectPath(child.path) },
+                )
+                TreeChildren(
+                    state = state,
+                    parent = child.path,
+                    depth = depth + 1,
+                    onSelectPath = onSelectPath,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TreeNodeRow(
     path: ZNodePath,
+    depth: Int,
     selected: Boolean,
+    childrenState: ZNodeChildrenState?,
     onClick: () -> Unit,
 ) {
     val background = if (selected) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
     } else {
         Color.Transparent
+    }
+    val indicator = when (childrenState) {
+        ZNodeChildrenState.Loading -> "..."
+        is ZNodeChildrenState.Loaded -> if (childrenState.children.isEmpty()) "-" else "v"
+        is ZNodeChildrenState.Failed -> "!"
+        ZNodeChildrenState.Unloaded,
+        null -> ">"
     }
 
     Row(
@@ -424,22 +485,47 @@ private fun TreeRow(
             .clip(RoundedCornerShape(6.dp))
             .background(background)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(
+                PaddingValues(
+                    start = (10 + depth * 16).dp,
+                    top = 8.dp,
+                    end = 10.dp,
+                    bottom = 8.dp,
+                ),
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = ">",
+            text = indicator,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = path.value,
+            text = if (path == ZNodePath.Root) path.value else path.name,
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+@Composable
+private fun TreeStateMessage(
+    text: String,
+    depth: Int,
+    isError: Boolean = false,
+) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = (10 + depth * 16).dp, top = 4.dp, end = 10.dp, bottom = 4.dp),
+        style = MaterialTheme.typography.bodySmall,
+        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 @Composable
@@ -457,37 +543,60 @@ private fun NodeDetailPane(
             }
         },
     ) {
-        when (val selection = state.nodeSelection) {
-            NodeSelectionState.None -> EmptyPanelMessage(
+        when (val detailState = state.nodeDetail) {
+            ZNodeDetailState.None -> EmptyPanelMessage(
                 title = "No znode selected",
                 body = "Choose a path from the tree to inspect data, stat, and ACL details.",
             )
 
-            is NodeSelectionState.SelectedPath -> PlaceholderEditor(selection.path)
-            is NodeSelectionState.Loading -> EmptyPanelMessage(
-                title = "Loading ${selection.path}",
+            is ZNodeDetailState.Loading -> EmptyPanelMessage(
+                title = "Loading ${detailState.path}",
                 body = "The node detail request is in progress.",
             )
 
-            is NodeSelectionState.Failed -> EmptyPanelMessage(
-                title = "Could not load ${selection.path}",
-                body = selection.error.message,
+            is ZNodeDetailState.Loaded -> NodeDataViewer(detailState.detail)
+            is ZNodeDetailState.Failed -> EmptyPanelMessage(
+                title = "Could not load ${detailState.path}",
+                body = detailState.error.message,
             )
         }
     }
 }
 
 @Composable
-private fun PlaceholderEditor(path: ZNodePath) {
+private fun NodeDataViewer(detail: ZNodeDetail) {
+    var selectedFormat by remember(detail.path, detail.stat.version) {
+        mutableStateOf(detail.detectedFormat.toViewFormat())
+    }
+
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            text = path.value,
+            text = detail.path.value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DataFormatButton(
+                label = "Text",
+                selected = selectedFormat == ZNodeDataFormat.Text,
+                onClick = { selectedFormat = ZNodeDataFormat.Text },
+            )
+            DataFormatButton(
+                label = "JSON",
+                selected = selectedFormat == ZNodeDataFormat.Json,
+                onClick = { selectedFormat = ZNodeDataFormat.Json },
+            )
+            DataFormatButton(
+                label = "Hex",
+                selected = selectedFormat == ZNodeDataFormat.Hex,
+                onClick = { selectedFormat = ZNodeDataFormat.Hex },
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -495,13 +604,31 @@ private fun PlaceholderEditor(path: ZNodePath) {
                 .clip(RoundedCornerShape(8.dp))
                 .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                .padding(14.dp),
+                .padding(14.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
             Text(
-                text = "No node data loaded",
+                text = detail.renderData(selectedFormat),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun DataFormatButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    if (selected) {
+        Button(onClick = onClick) {
+            Text(label)
+        }
+    } else {
+        OutlinedButton(onClick = onClick) {
+            Text(label)
         }
     }
 }
@@ -515,27 +642,29 @@ private fun InspectorPane(
         title = "Inspector",
         modifier = modifier,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            val detail = (state.nodeDetail as? ZNodeDetailState.Loaded)?.detail
             InspectorSection(
                 title = "Stat",
-                rows = listOf(
-                    "Version" to "-",
-                    "Children" to "-",
-                    "Modified" to "-",
-                ),
+                rows = detail?.stat?.toInspectorRows() ?: emptyStatRows(),
             )
             InspectorSection(
                 title = "ACL",
-                rows = listOf(
-                    "Entries" to "-",
-                    "Mode" to if (state.isReadOnly) "Read only" else "Read/write",
-                ),
+                rows = detail?.acl?.toInspectorRows() ?: listOf("Entries" to "-", "Mode" to state.modeLabel()),
             )
             InspectorSection(
                 title = "Watch",
                 rows = listOf(
-                    "State" to "Not registered",
-                    "Last event" to "-",
+                    "State" to when {
+                        state.watchState.error != null -> "Failed"
+                        state.watchState.isRegistered -> "Registered"
+                        else -> "Not registered"
+                    },
+                    "Path" to (state.watchState.watchedPath?.value ?: "-"),
+                    "Last event" to (state.watchState.lastEvent?.let { "${it.type} ${it.path}" } ?: "-"),
                 ),
             )
         }
@@ -578,6 +707,133 @@ private fun InspectorSection(
         }
     }
 }
+
+private val PrettyJson = Json {
+    prettyPrint = true
+    ignoreUnknownKeys = true
+}
+
+private fun ZNodeDataFormat.toViewFormat(): ZNodeDataFormat =
+    when (this) {
+        ZNodeDataFormat.Json -> ZNodeDataFormat.Json
+        ZNodeDataFormat.Hex,
+        ZNodeDataFormat.Base64,
+        ZNodeDataFormat.Unknown -> ZNodeDataFormat.Hex
+
+        ZNodeDataFormat.Text,
+        ZNodeDataFormat.Yaml,
+        ZNodeDataFormat.Properties -> ZNodeDataFormat.Text
+    }
+
+private fun ZNodeDetail.renderData(format: ZNodeDataFormat): String {
+    if (data.isEmpty()) return "(empty data)"
+
+    return when (format) {
+        ZNodeDataFormat.Json -> renderJsonData()
+        ZNodeDataFormat.Hex -> data.toHexPreview()
+        else -> data.toTextPreview()
+    }
+}
+
+private fun ZNodeDetail.renderJsonData(): String {
+    val text = data.toTextPreview()
+    return try {
+        PrettyJson.encodeToString<JsonElement>(PrettyJson.parseToJsonElement(text))
+    } catch (_: Exception) {
+        "Invalid JSON\n\n$text"
+    }
+}
+
+private fun ByteArray.toTextPreview(): String {
+    val text = decodeToString()
+    val preview = text.take(MaxDataPreviewChars)
+    val suffix = if (text.length > MaxDataPreviewChars) {
+        "\n\n... truncated ${text.length - MaxDataPreviewChars} characters"
+    } else {
+        ""
+    }
+    return preview + suffix
+}
+
+private fun ByteArray.toHexPreview(): String {
+    val bytes = take(MaxHexPreviewBytes)
+    val lines = bytes.chunked(16).mapIndexed { index, chunk ->
+        val offset = (index * 16).toString(16).padStart(8, '0')
+        val hex = chunk.joinToString(" ") { byte ->
+            (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+        }
+        "$offset  $hex"
+    }
+    val suffix = if (size > MaxHexPreviewBytes) {
+        "\n... truncated ${size - MaxHexPreviewBytes} bytes"
+    } else {
+        ""
+    }
+    return lines.joinToString("\n") + suffix
+}
+
+private fun ZNodeStat.toInspectorRows(): List<Pair<String, String>> =
+    listOf(
+        "Data size" to "$dataLength bytes",
+        "Data version" to version.toString(),
+        "cversion" to cversion.toString(),
+        "aversion" to aversion.toString(),
+        "Children" to numChildren.toString(),
+        "ctime" to ctimeMillis.toString(),
+        "mtime" to mtimeMillis.toString(),
+        "Ephemeral owner" to ephemeralOwner.toZxidLabel(),
+        "czxid" to czxid.toZxidLabel(),
+        "mzxid" to mzxid.toZxidLabel(),
+        "pzxid" to pzxid.toZxidLabel(),
+    )
+
+private fun emptyStatRows(): List<Pair<String, String>> =
+    listOf(
+        "Data size" to "-",
+        "Data version" to "-",
+        "cversion" to "-",
+        "aversion" to "-",
+        "Children" to "-",
+        "ctime" to "-",
+        "mtime" to "-",
+        "Ephemeral owner" to "-",
+        "czxid" to "-",
+        "mzxid" to "-",
+        "pzxid" to "-",
+    )
+
+private fun List<ZNodeAcl>.toInspectorRows(): List<Pair<String, String>> =
+    buildList {
+        add("Entries" to size.toString())
+        if (isEmpty()) {
+            add("Permissions" to "-")
+            return@buildList
+        }
+        this@toInspectorRows.take(4).forEachIndexed { index, acl ->
+            add("ACL ${index + 1}" to "${acl.scheme}:${acl.id} ${acl.permissions.toPermissionLabel()}")
+        }
+        if (size > 4) {
+            add("More" to "${size - 4} hidden")
+        }
+    }
+
+private fun Set<ZNodePermission>.toPermissionLabel(): String =
+    listOfNotNull(
+        "r".takeIf { ZNodePermission.Read in this },
+        "w".takeIf { ZNodePermission.Write in this },
+        "c".takeIf { ZNodePermission.Create in this },
+        "d".takeIf { ZNodePermission.Delete in this },
+        "a".takeIf { ZNodePermission.Admin in this },
+    ).joinToString("")
+
+private fun Long.toZxidLabel(): String =
+    if (this == 0L) "0" else "0x${toString(16)}"
+
+private fun AppState.modeLabel(): String =
+    if (isReadOnly) "Read only" else "Read/write"
+
+private const val MaxDataPreviewChars = 64 * 1024
+private const val MaxHexPreviewBytes = 16 * 1024
 
 @Composable
 private fun Panel(
