@@ -144,12 +144,13 @@ class YggdrasilStateHolder(
         )
     }
 
-    fun selectConnection(connectionId: ConnectionId) {
+    suspend fun selectConnection(connectionId: ConnectionId) {
         if (state.connections.none { it.id == connectionId }) return
         state.activeConnectionId
             ?.takeIf { it != connectionId }
             ?.let { zNodeRepository?.closeConnection(it) }
 
+        val connection = state.connections.first { it.id == connectionId }
         state = state.copy(
             activeConnectionId = connectionId,
             nodeSelection = NodeSelectionState.None,
@@ -157,8 +158,9 @@ class YggdrasilStateHolder(
             nodeDetail = ZNodeDetailState.None,
             deletePreview = DeletePreviewState.None,
             watchState = ZNodeWatchState(),
-            statusMessage = "Selected ${state.connections.first { it.id == connectionId }.name}",
+            statusMessage = "Selected ${connection.name}",
         )
+        selectPath(ZNodePath.Root)
     }
 
     suspend fun createConnection(draft: ConnectionProfileDraft) {
@@ -239,6 +241,9 @@ class YggdrasilStateHolder(
                     connectionStatuses = state.connectionStatuses + (connectionId to ConnectionRuntimeStatus.Connected),
                     statusMessage = "Connected to ${profile.name}",
                 )
+                if (state.activeConnectionId == connectionId && state.selectedPath == null) {
+                    selectPath(ZNodePath.Root)
+                }
             }
 
             is OperationResult.Failure -> {
@@ -251,9 +256,12 @@ class YggdrasilStateHolder(
     }
 
     suspend fun selectPath(path: ZNodePath) {
+        val currentDetail = state.nodeDetail
         state = state.copy(
             nodeSelection = NodeSelectionState.Loading(path),
-            nodeDetail = ZNodeDetailState.Loading(path),
+            nodeDetail = if (currentDetail is ZNodeDetailState.Loaded) state.nodeDetail else ZNodeDetailState.Loading(
+                path
+            ),
             deletePreview = DeletePreviewState.None,
             watchState = ZNodeWatchState(watchedPath = path),
             statusMessage = "Loading $path",
@@ -269,30 +277,81 @@ class YggdrasilStateHolder(
     }
 
     suspend fun loadChildren(path: ZNodePath) {
+        loadChildren(
+            path = path,
+            showLoadingState = true,
+            updateStatus = true,
+            prefetchVisibleChildren = true,
+        )
+    }
+
+    private suspend fun loadChildren(
+        path: ZNodePath,
+        showLoadingState: Boolean,
+        updateStatus: Boolean,
+        prefetchVisibleChildren: Boolean,
+    ) {
         val repository = zNodeRepository ?: return
         val profile = state.activeConnection ?: return
+        val currentChildrenState = state.znodeChildren[path]
 
-        state = state.copy(
-            znodeChildren = state.znodeChildren + (path to ZNodeChildrenState.Loading),
-            statusMessage = "Loading children for $path",
-        )
+        if (showLoadingState || updateStatus) {
+            state = state.copy(
+                znodeChildren = if (!showLoadingState || currentChildrenState is ZNodeChildrenState.Loaded) {
+                    state.znodeChildren
+                } else {
+                    state.znodeChildren + (path to ZNodeChildrenState.Loading)
+                },
+                statusMessage = if (updateStatus) "Loading children for $path" else state.statusMessage,
+            )
+        }
 
         when (val result = repository.loadChildren(profile, path)) {
             is OperationResult.Success -> {
                 state = state.copy(
                     znodeChildren = state.znodeChildren + (path to ZNodeChildrenState.Loaded(result.value)),
                     connectionStatuses = state.connectionStatuses + (profile.id to ConnectionRuntimeStatus.Connected),
-                    statusMessage = "Loaded ${result.value.size} child${if (result.value.size == 1) "" else "ren"} for $path",
+                    statusMessage = if (updateStatus) {
+                        "Loaded ${result.value.size} child${if (result.value.size == 1) "" else "ren"} for $path"
+                    } else {
+                        state.statusMessage
+                    },
                 )
+                if (prefetchVisibleChildren) {
+                    prefetchChildrenOfVisibleNodes(result.value)
+                }
             }
 
             is OperationResult.Failure -> {
-                state = state.copy(
-                    znodeChildren = state.znodeChildren + (path to ZNodeChildrenState.Failed(result.error)),
-                    statusMessage = result.error.message,
-                )
+                if (showLoadingState || updateStatus || currentChildrenState !is ZNodeChildrenState.Loaded) {
+                    state = state.copy(
+                        znodeChildren = if (currentChildrenState is ZNodeChildrenState.Loaded) {
+                            state.znodeChildren
+                        } else {
+                            state.znodeChildren + (path to ZNodeChildrenState.Failed(result.error))
+                        },
+                        statusMessage = if (updateStatus) result.error.message else state.statusMessage,
+                    )
+                }
             }
         }
+    }
+
+    private suspend fun prefetchChildrenOfVisibleNodes(visibleNodes: List<ZNodeSummary>) {
+        visibleNodes
+            .filter { it.hasChildren }
+            .filter { child ->
+                state.znodeChildren[child.path] !is ZNodeChildrenState.Loaded &&
+                        state.znodeChildren[child.path] !is ZNodeChildrenState.Loading
+            }
+            .forEach { child ->
+                loadChildren(
+                    path = child.path,
+                    showLoadingState = false,
+                    updateStatus = false,
+                    prefetchVisibleChildren = false,
+                )
+            }
     }
 
     suspend fun refreshSelectedPath() {
@@ -504,9 +563,14 @@ class YggdrasilStateHolder(
     private suspend fun loadDetail(path: ZNodePath) {
         val repository = zNodeRepository ?: return
         val profile = state.activeConnection ?: return
+        val currentDetail = state.nodeDetail
 
         state = state.copy(
-            nodeDetail = ZNodeDetailState.Loading(path),
+            nodeDetail = if (currentDetail is ZNodeDetailState.Loaded) {
+                currentDetail
+            } else {
+                ZNodeDetailState.Loading(path)
+            },
             statusMessage = "Loading detail for $path",
         )
 

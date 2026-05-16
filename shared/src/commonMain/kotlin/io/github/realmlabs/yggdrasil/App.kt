@@ -52,7 +52,7 @@ fun App() {
     YggdrasilTheme {
         AppShell(
             state = stateHolder.state,
-            onSelectConnection = stateHolder::selectConnection,
+            onSelectConnection = { id -> coroutineScope.launch { stateHolder.selectConnection(id) } },
             onCreateConnection = { draft -> coroutineScope.launch { stateHolder.createConnection(draft) } },
             onDeleteConnection = { id -> coroutineScope.launch { stateHolder.deleteConnection(id) } },
             onTestConnection = { id -> coroutineScope.launch { stateHolder.testConnection(id) } },

@@ -23,10 +23,12 @@ class YggdrasilStateHolderTest {
             ),
         )
 
-        holder.selectConnection(connection.id)
+        runBlocking {
+            holder.selectConnection(connection.id)
+        }
 
         assertEquals(connection.id, holder.state.activeConnectionId)
-        assertIs<NodeSelectionState.None>(holder.state.nodeSelection)
+        assertEquals(ZNodePath.Root, holder.state.selectedPath)
         assertTrue(!holder.state.isReadOnly)
     }
 
