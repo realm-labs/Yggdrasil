@@ -75,6 +75,46 @@ enum class ZNodeDataFormat {
     Unknown,
 }
 
+data class CreateZNodeRequest(
+    val path: ZNodePath,
+    val data: ByteArray,
+    val mode: ZNodeCreateMode,
+)
+
+enum class ZNodeCreateMode {
+    Persistent,
+    Ephemeral,
+    PersistentSequential,
+    EphemeralSequential,
+}
+
+data class UpdateZNodeDataRequest(
+    val path: ZNodePath,
+    val data: ByteArray,
+    val expectedVersion: Int,
+)
+
+data class DeleteZNodeRequest(
+    val path: ZNodePath,
+    val recursive: Boolean,
+    val expectedVersion: Int? = null,
+)
+
+data class DeleteZNodePreview(
+    val rootPath: ZNodePath,
+    val recursive: Boolean,
+    val paths: List<ZNodePath>,
+) {
+    val requiresFullPathConfirmation: Boolean
+        get() = recursive || rootPath == ZNodePath.Root || paths.size > 1
+}
+
+data class UpdateZNodeAclRequest(
+    val path: ZNodePath,
+    val acl: List<ZNodeAcl>,
+    val expectedAversion: Int,
+)
+
 data class ZNodeWatchEvent(
     val path: ZNodePath,
     val type: ZNodeWatchEventType,

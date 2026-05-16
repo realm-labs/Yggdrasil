@@ -58,6 +58,20 @@ fun App() {
             onTestConnection = { id -> coroutineScope.launch { stateHolder.testConnection(id) } },
             onSelectPath = { path -> coroutineScope.launch { stateHolder.selectPath(path) } },
             onRefreshSelectedPath = { coroutineScope.launch { stateHolder.refreshSelectedPath() } },
+            onCreateNode = { request -> coroutineScope.launch { stateHolder.createNode(request) } },
+            onUpdateNodeData = { data, expectedVersion ->
+                coroutineScope.launch { stateHolder.updateSelectedNodeData(data, expectedVersion) }
+            },
+            onPreviewDeleteNode = { recursive ->
+                coroutineScope.launch { stateHolder.previewDeleteSelectedNode(recursive) }
+            },
+            onDeletePreviewedNode = { confirmation ->
+                coroutineScope.launch { stateHolder.deletePreviewedNode(confirmation) }
+            },
+            onClearDeletePreview = stateHolder::clearDeletePreview,
+            onUpdateAcl = { acl, expectedAversion ->
+                coroutineScope.launch { stateHolder.updateSelectedAcl(acl, expectedAversion) }
+            },
             onClearSelection = stateHolder::clearSelection,
         )
     }

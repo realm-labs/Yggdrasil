@@ -12,11 +12,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.apache.curator.x.async.AsyncCuratorFramework
 import org.apache.curator.x.async.WatchMode
-import org.apache.zookeeper.KeeperException
-import org.apache.zookeeper.WatchedEvent
-import org.apache.zookeeper.Watcher
-import org.apache.zookeeper.ZooDefs
+import org.apache.curator.x.async.api.DeleteOption
+import org.apache.zookeeper.*
 import org.apache.zookeeper.data.ACL
+import org.apache.zookeeper.data.Id
 import org.apache.zookeeper.data.Stat
 import java.util.concurrent.CompletionStage
 import kotlin.time.Duration.Companion.milliseconds
@@ -48,20 +47,91 @@ class CuratorZNodeRepository(
         profile: ConnectionProfile,
         path: ZNodePath,
     ): OperationResult<ZNodeDetail> =
+        withAsyncClient(profile) { async -> loadDetail(async, path) }
+
+    override suspend fun createNode(
+        profile: ConnectionProfile,
+        request: CreateZNodeRequest,
+    ): OperationResult<ZNodePath> =
         withAsyncClient(profile) { async ->
-            val stat = Stat()
-            val data = async.data.storingStatIn(stat).forPath(path.value).await() ?: byteArrayOf()
-            val acl = async.acl.forPath(path.value).await().map(ACL::toDomain)
+            val createdPath = async.create()
+                .withMode(request.mode.toZooKeeperCreateMode())
+                .forPath(request.path.value, request.data)
+                .await()
+            OperationResult.Success(ZNodePath.requireValid(createdPath))
+        }
+
+    override suspend fun updateData(
+        profile: ConnectionProfile,
+        request: UpdateZNodeDataRequest,
+    ): OperationResult<ZNodeDetail> =
+        withAsyncClient(profile) { async ->
+            async.setData()
+                .withVersion(request.expectedVersion)
+                .forPath(request.path.value, request.data)
+                .await()
+            loadDetail(async, request.path)
+        }
+
+    override suspend fun previewDelete(
+        profile: ConnectionProfile,
+        request: DeleteZNodeRequest,
+    ): OperationResult<DeleteZNodePreview> =
+        withAsyncClient(profile) { async ->
+            val paths = if (request.recursive) {
+                loadSubtreePaths(async, request.path)
+            } else {
+                val stat = async.checkExists().forPath(request.path.value).await()
+                    ?: return@withAsyncClient OperationResult.Failure(
+                        AppError.ZooKeeper("Node does not exist."),
+                    )
+                if (stat.numChildren > 0) {
+                    return@withAsyncClient OperationResult.Failure(
+                        AppError.ZooKeeper("Node has children. Enable recursive delete to preview the full delete list."),
+                    )
+                }
+                listOf(request.path)
+            }
 
             OperationResult.Success(
-                ZNodeDetail(
-                    path = path,
-                    data = data,
-                    stat = stat.toDomain(),
-                    detectedFormat = detectDataFormat(data),
-                    acl = acl,
+                DeleteZNodePreview(
+                    rootPath = request.path,
+                    recursive = request.recursive,
+                    paths = paths,
                 ),
             )
+        }
+
+    override suspend fun deleteNode(
+        profile: ConnectionProfile,
+        request: DeleteZNodeRequest,
+    ): OperationResult<Unit> =
+        withAsyncClient(profile) { async ->
+            val delete = when {
+                request.recursive && request.expectedVersion != null -> async.delete()
+                    .withOptionsAndVersion(setOf(DeleteOption.deletingChildrenIfNeeded), request.expectedVersion)
+
+                request.recursive -> async.delete()
+                    .withOptions(setOf(DeleteOption.deletingChildrenIfNeeded))
+
+                request.expectedVersion != null -> async.delete().withVersion(request.expectedVersion)
+                else -> async.delete()
+            }
+
+            delete.forPath(request.path.value).await()
+            OperationResult.Success(Unit)
+        }
+
+    override suspend fun updateAcl(
+        profile: ConnectionProfile,
+        request: UpdateZNodeAclRequest,
+    ): OperationResult<ZNodeDetail> =
+        withAsyncClient(profile) { async ->
+            async.setACL()
+                .withACL(request.acl.map(ZNodeAcl::toZooKeeperAcl), request.expectedAversion)
+                .forPath(request.path.value)
+                .await()
+            loadDetail(async, request.path)
         }
 
     override fun watch(
@@ -142,9 +212,25 @@ class CuratorZNodeRepository(
                     is OperationResult.Success -> Unit
                 }
                 block(client.async)
+            } catch (exception: KeeperException.NodeExistsException) {
+                OperationResult.Failure(
+                    AppError.ZooKeeper("Node already exists.", exception.message),
+                )
             } catch (exception: KeeperException.NoNodeException) {
                 OperationResult.Failure(
                     AppError.ZooKeeper("Node does not exist.", exception.message),
+                )
+            } catch (exception: KeeperException.NotEmptyException) {
+                OperationResult.Failure(
+                    AppError.ZooKeeper("Node has children. Use recursive delete to remove it.", exception.message),
+                )
+            } catch (exception: KeeperException.BadVersionException) {
+                OperationResult.Failure(
+                    AppError.ZooKeeper("Node version changed. Reload before saving.", exception.message),
+                )
+            } catch (exception: KeeperException.InvalidACLException) {
+                OperationResult.Failure(
+                    AppError.ZooKeeper("Invalid ACL.", exception.message),
                 )
             } catch (exception: KeeperException.NoAuthException) {
                 OperationResult.Failure(
@@ -158,6 +244,38 @@ class CuratorZNodeRepository(
                 client.close()
             }
         }
+}
+
+private suspend fun loadDetail(
+    async: AsyncCuratorFramework,
+    path: ZNodePath,
+): OperationResult<ZNodeDetail> {
+    val stat = Stat()
+    val data = async.data.storingStatIn(stat).forPath(path.value).await() ?: byteArrayOf()
+    val acl = async.acl.forPath(path.value).await().map(ACL::toDomain)
+
+    return OperationResult.Success(
+        ZNodeDetail(
+            path = path,
+            data = data,
+            stat = stat.toDomain(),
+            detectedFormat = detectDataFormat(data),
+            acl = acl,
+        ),
+    )
+}
+
+private suspend fun loadSubtreePaths(
+    async: AsyncCuratorFramework,
+    path: ZNodePath,
+): List<ZNodePath> {
+    val children = async.children.forPath(path.value).await().sorted()
+    return buildList {
+        add(path)
+        children.forEach { child ->
+            addAll(loadSubtreePaths(async, path.child(child)))
+        }
+    }
 }
 
 private fun Stat.toDomain(): ZNodeStat =
@@ -187,6 +305,31 @@ private fun ACL.toDomain(): ZNodeAcl =
             if (perms and ZooDefs.Perms.ADMIN != 0) add(ZNodePermission.Admin)
         },
     )
+
+private fun ZNodeAcl.toZooKeeperAcl(): ACL =
+    ACL(
+        permissions.toZooKeeperPerms(),
+        Id(scheme, id),
+    )
+
+private fun Set<ZNodePermission>.toZooKeeperPerms(): Int =
+    fold(0) { permissions, permission ->
+        permissions or when (permission) {
+            ZNodePermission.Read -> ZooDefs.Perms.READ
+            ZNodePermission.Write -> ZooDefs.Perms.WRITE
+            ZNodePermission.Create -> ZooDefs.Perms.CREATE
+            ZNodePermission.Delete -> ZooDefs.Perms.DELETE
+            ZNodePermission.Admin -> ZooDefs.Perms.ADMIN
+        }
+    }
+
+private fun ZNodeCreateMode.toZooKeeperCreateMode(): CreateMode =
+    when (this) {
+        ZNodeCreateMode.Persistent -> CreateMode.PERSISTENT
+        ZNodeCreateMode.Ephemeral -> CreateMode.EPHEMERAL
+        ZNodeCreateMode.PersistentSequential -> CreateMode.PERSISTENT_SEQUENTIAL
+        ZNodeCreateMode.EphemeralSequential -> CreateMode.EPHEMERAL_SEQUENTIAL
+    }
 
 private fun Watcher.Event.EventType.toDomain(): ZNodeWatchEventType =
     when (this) {

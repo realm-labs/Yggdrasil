@@ -97,10 +97,154 @@ class YggdrasilStateHolderTest {
         assertEquals(listOf(childPath), children.children.map { it.path })
     }
 
+    @Test
+    fun createNodeUsesRepositoryAndSelectsCreatedPath() {
+        val connection = ConnectionProfile(
+            id = ConnectionId("local"),
+            name = "Local",
+            connectionString = "localhost:2181",
+            mode = ConnectionMode.ReadWrite,
+        )
+        val path = ZNodePath.requireValid("/created")
+        val repository = FakeZNodeRepository(
+            children = emptyList(),
+            detail = ZNodeDetail(path = path),
+        )
+        val holder = YggdrasilStateHolder(
+            zNodeRepository = repository,
+            initialState = AppState(
+                connections = listOf(connection),
+                activeConnectionId = connection.id,
+            ),
+        )
+
+        runBlocking {
+            holder.createNode(
+                CreateZNodeRequest(
+                    path = path,
+                    data = "value".encodeToByteArray(),
+                    mode = ZNodeCreateMode.Persistent,
+                ),
+            )
+        }
+
+        assertEquals(path, repository.createdRequest?.path)
+        assertEquals(path, holder.state.selectedPath)
+    }
+
+    @Test
+    fun updateSelectedNodeDataUsesExpectedVersion() {
+        val connection = ConnectionProfile(
+            id = ConnectionId("local"),
+            name = "Local",
+            connectionString = "localhost:2181",
+            mode = ConnectionMode.ReadWrite,
+        )
+        val path = ZNodePath.requireValid("/services")
+        val repository = FakeZNodeRepository(
+            children = emptyList(),
+            detail = ZNodeDetail(path = path, stat = ZNodeStat(version = 4)),
+        )
+        val holder = YggdrasilStateHolder(
+            zNodeRepository = repository,
+            initialState = AppState(
+                connections = listOf(connection),
+                activeConnectionId = connection.id,
+                nodeSelection = NodeSelectionState.SelectedPath(path),
+            ),
+        )
+
+        runBlocking {
+            holder.updateSelectedNodeData("next".encodeToByteArray(), expectedVersion = 4)
+        }
+
+        assertEquals(4, repository.updatedDataRequest?.expectedVersion)
+        assertEquals("next", repository.updatedDataRequest?.data?.decodeToString())
+    }
+
+    @Test
+    fun deletePreviewRequiresConfirmationForRecursiveDelete() {
+        val connection = ConnectionProfile(
+            id = ConnectionId("local"),
+            name = "Local",
+            connectionString = "localhost:2181",
+            mode = ConnectionMode.ReadWrite,
+        )
+        val path = ZNodePath.requireValid("/services")
+        val repository = FakeZNodeRepository(
+            children = emptyList(),
+            detail = ZNodeDetail(path = path),
+        )
+        val holder = YggdrasilStateHolder(
+            zNodeRepository = repository,
+            initialState = AppState(
+                connections = listOf(connection),
+                activeConnectionId = connection.id,
+                nodeSelection = NodeSelectionState.SelectedPath(path),
+            ),
+        )
+
+        runBlocking {
+            holder.previewDeleteSelectedNode(recursive = true)
+            holder.deletePreviewedNode(confirmation = "wrong")
+        }
+
+        assertNull(repository.deleteRequest)
+
+        runBlocking {
+            holder.deletePreviewedNode(confirmation = path.value)
+        }
+
+        assertEquals(path, repository.deleteRequest?.path)
+        assertTrue(repository.deleteRequest?.recursive == true)
+    }
+
+    @Test
+    fun updateAclUsesExpectedAversion() {
+        val connection = ConnectionProfile(
+            id = ConnectionId("local"),
+            name = "Local",
+            connectionString = "localhost:2181",
+            mode = ConnectionMode.ReadWrite,
+        )
+        val path = ZNodePath.requireValid("/services")
+        val repository = FakeZNodeRepository(
+            children = emptyList(),
+            detail = ZNodeDetail(path = path, stat = ZNodeStat(aversion = 7)),
+        )
+        val holder = YggdrasilStateHolder(
+            zNodeRepository = repository,
+            initialState = AppState(
+                connections = listOf(connection),
+                activeConnectionId = connection.id,
+                nodeSelection = NodeSelectionState.SelectedPath(path),
+            ),
+        )
+        val acl = listOf(
+            ZNodeAcl(
+                scheme = "world",
+                id = "anyone",
+                permissions = setOf(ZNodePermission.Read),
+            ),
+        )
+
+        runBlocking {
+            holder.updateSelectedAcl(acl, expectedAversion = 7)
+        }
+
+        assertEquals(7, repository.updatedAclRequest?.expectedAversion)
+        assertEquals(acl, repository.updatedAclRequest?.acl)
+    }
+
     private class FakeZNodeRepository(
         private val children: List<ZNodeSummary>,
         private val detail: ZNodeDetail,
     ) : ZNodeRepository {
+        var createdRequest: CreateZNodeRequest? = null
+        var updatedDataRequest: UpdateZNodeDataRequest? = null
+        var deleteRequest: DeleteZNodeRequest? = null
+        var updatedAclRequest: UpdateZNodeAclRequest? = null
+
         override suspend fun loadChildren(
             profile: ConnectionProfile,
             path: ZNodePath,
@@ -112,6 +256,50 @@ class YggdrasilStateHolderTest {
             path: ZNodePath,
         ): OperationResult<ZNodeDetail> =
             OperationResult.Success(detail)
+
+        override suspend fun createNode(
+            profile: ConnectionProfile,
+            request: CreateZNodeRequest,
+        ): OperationResult<ZNodePath> {
+            createdRequest = request
+            return OperationResult.Success(request.path)
+        }
+
+        override suspend fun updateData(
+            profile: ConnectionProfile,
+            request: UpdateZNodeDataRequest,
+        ): OperationResult<ZNodeDetail> {
+            updatedDataRequest = request
+            return OperationResult.Success(detail.copy(data = request.data))
+        }
+
+        override suspend fun previewDelete(
+            profile: ConnectionProfile,
+            request: DeleteZNodeRequest,
+        ): OperationResult<DeleteZNodePreview> =
+            OperationResult.Success(
+                DeleteZNodePreview(
+                    rootPath = request.path,
+                    recursive = request.recursive,
+                    paths = listOf(request.path),
+                ),
+            )
+
+        override suspend fun deleteNode(
+            profile: ConnectionProfile,
+            request: DeleteZNodeRequest,
+        ): OperationResult<Unit> {
+            deleteRequest = request
+            return OperationResult.Success(Unit)
+        }
+
+        override suspend fun updateAcl(
+            profile: ConnectionProfile,
+            request: UpdateZNodeAclRequest,
+        ): OperationResult<ZNodeDetail> {
+            updatedAclRequest = request
+            return OperationResult.Success(detail.copy(acl = request.acl))
+        }
 
         override fun watch(
             profile: ConnectionProfile,
