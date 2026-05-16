@@ -1,8 +1,10 @@
 package io.github.realmlabs.yggdrasil.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -12,11 +14,80 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
+
+object ShellMetrics {
+    val ControlHeight = 40.dp
+    val CompactControlHeight = 34.dp
+    val FieldShape = RoundedCornerShape(8.dp)
+    val CardShape = RoundedCornerShape(8.dp)
+    val TreeRowShape = RoundedCornerShape(5.dp)
+    val IconButtonSize = 40.dp
+}
+
+@Composable
+fun ShellTextInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    monospace: Boolean = false,
+    leading: @Composable (() -> Unit)? = null,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    val textStyle = MaterialTheme.typography.bodySmall.merge(
+        TextStyle(
+            color = MaterialTheme.colorScheme.onSurface,
+            fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
+        ),
+    )
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.height(ShellMetrics.ControlHeight),
+        enabled = enabled,
+        singleLine = true,
+        textStyle = textStyle,
+        decorationBox = { innerTextField ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(ShellMetrics.FieldShape)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 0.55f else 0.28f),
+                        shape = ShellMetrics.FieldShape,
+                    )
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                leading?.invoke()
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    innerTextField()
+                }
+                trailing?.invoke()
+            }
+        },
+    )
+}
 
 @Composable
 fun TopBar(

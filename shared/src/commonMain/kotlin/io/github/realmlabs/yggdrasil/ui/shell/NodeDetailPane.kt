@@ -1,12 +1,8 @@
 package io.github.realmlabs.yggdrasil.ui.shell
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +13,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -35,22 +32,10 @@ fun NodeDetailPane(
     onClearSelection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Panel(
-        title = "Node data",
-        modifier = modifier,
-        trailing = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onDeleteNode,
-                    enabled = state.selectedPath != null && !state.isReadOnly,
-                ) {
-                    Text("Delete")
-                }
-                OutlinedButton(onClick = onClearSelection) {
-                    Text("Clear")
-                }
-            }
-        },
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(16.dp),
     ) {
         when (val detailState = state.nodeDetail) {
             ZNodeDetailState.None -> EmptyPanelMessage(
@@ -66,8 +51,11 @@ fun NodeDetailPane(
             is ZNodeDetailState.Loaded -> NodeDataViewer(
                 detail = detailState.detail,
                 readOnly = state.isReadOnly,
+                onDeleteNode = onDeleteNode,
+                onClearSelection = onClearSelection,
                 onUpdateNodeData = onUpdateNodeData,
             )
+
             is ZNodeDetailState.Failed -> EmptyPanelMessage(
                 title = "Could not load ${detailState.path}",
                 body = detailState.error.message,
@@ -80,6 +68,8 @@ fun NodeDetailPane(
 private fun NodeDataViewer(
     detail: ZNodeDetail,
     readOnly: Boolean,
+    onDeleteNode: () -> Unit,
+    onClearSelection: () -> Unit,
     onUpdateNodeData: (ByteArray, Int) -> Unit,
 ) {
     var selectedFormat by remember(detail.path, detail.stat.version) {
@@ -87,83 +77,116 @@ private fun NodeDataViewer(
     }
     var editing by remember(detail.path, detail.stat.version) { mutableStateOf(false) }
     var editText by remember(detail.path, detail.stat.version) { mutableStateOf(detail.data.toTextPreview()) }
+    val renderedData = remember(detail.path, detail.stat.version, selectedFormat) {
+        detail.renderData(selectedFormat)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(
-            text = detail.path.value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            DataFormatButton(
-                label = "Text",
-                selected = selectedFormat == ZNodeDataFormat.Text,
-                onClick = { selectedFormat = ZNodeDataFormat.Text },
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = detail.path.value,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            DataFormatButton(
-                label = "JSON",
-                selected = selectedFormat == ZNodeDataFormat.Json,
-                onClick = { selectedFormat = ZNodeDataFormat.Json },
-            )
-            DataFormatButton(
-                label = "Hex",
-                selected = selectedFormat == ZNodeDataFormat.Hex,
-                onClick = { selectedFormat = ZNodeDataFormat.Hex },
-            )
-            Spacer(Modifier.weight(1f))
-            if (editing) {
-                OutlinedButton(onClick = {
-                    editing = false
-                    editText = detail.data.toTextPreview()
-                }) {
-                    Text("Cancel")
-                }
-                Button(onClick = {
-                    onUpdateNodeData(editText.encodeToByteArray(), detail.stat.version)
-                    editing = false
-                }) {
-                    Text("Save")
-                }
-            } else {
-                Button(
-                    onClick = {
-                        selectedFormat = ZNodeDataFormat.Text
-                        editText = detail.data.toTextPreview()
-                        editing = true
-                    },
-                    enabled = !readOnly,
-                ) {
-                    Text("Edit")
-                }
-            }
+            TextButton(onClick = onClearSelection) { Text("Clear") }
         }
-        Box(
+        DataFormatSegmentedControl(
+            selectedFormat = selectedFormat,
+            onSelectFormat = { selectedFormat = it },
+        )
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                .padding(14.dp)
-                .verticalScroll(rememberScrollState()),
+                .clip(ShellMetrics.CardShape)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f), ShellMetrics.CardShape)
+                .background(MaterialTheme.colorScheme.surface),
         ) {
-            if (editing) {
-                TextField(
-                    value = editText,
-                    onValueChange = { editText = it },
-                    modifier = Modifier.fillMaxWidth().height(360.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium,
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    text = renderedData.lineSequence().mapIndexed { index, _ -> (index + 1).toString() }
+                        .joinToString("\n"),
+                    modifier = Modifier
+                        .width(50.dp)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                        .padding(top = 12.dp, end = 12.dp),
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
                 )
-            } else {
-                NodeDataText(detail = detail, format = selectedFormat)
+                Box(Modifier.weight(1f).padding(12.dp)) {
+                    if (editing) {
+                        TextField(
+                            value = editText,
+                            onValueChange = { editText = it },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                        )
+                    } else {
+                        NodeDataText(renderedData = renderedData, format = selectedFormat)
+                    }
+                }
+            }
+            DividerLine(vertical = false)
+            Row(
+                modifier = Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("${detail.data.size.toDisplaySize()}   UTF-8", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = if (selectedFormat == ZNodeDataFormat.Json && !renderedData.startsWith(InvalidJsonPrefix)) "✓ Valid JSON" else "",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.weight(1f))
+                if (editing) {
+                    Button(
+                        onClick = {
+                            onUpdateNodeData(editText.encodeToByteArray(), detail.stat.version)
+                            editing = false
+                        },
+                        modifier = Modifier.height(ShellMetrics.ControlHeight),
+                        shape = ShellMetrics.FieldShape,
+                    ) { Text("Save") }
+                    OutlinedButton(
+                        onClick = {
+                            editing = false
+                            editText = detail.data.toTextPreview()
+                        },
+                        modifier = Modifier.height(ShellMetrics.ControlHeight),
+                        shape = ShellMetrics.FieldShape,
+                    ) { Text("Cancel") }
+                } else {
+                    OutlinedButton(
+                        onClick = {
+                            selectedFormat = ZNodeDataFormat.Text
+                            editText = detail.data.toTextPreview()
+                            editing = true
+                        },
+                        enabled = !readOnly,
+                        modifier = Modifier.height(ShellMetrics.ControlHeight),
+                        shape = ShellMetrics.FieldShape,
+                    ) { Text("✎  Edit") }
+                    OutlinedButton(
+                        onClick = onDeleteNode,
+                        enabled = !readOnly,
+                        modifier = Modifier.height(ShellMetrics.ControlHeight),
+                        shape = ShellMetrics.FieldShape,
+                    ) { Text("Delete") }
+                }
             }
         }
     }
@@ -171,12 +194,9 @@ private fun NodeDataViewer(
 
 @Composable
 private fun NodeDataText(
-    detail: ZNodeDetail,
+    renderedData: String,
     format: ZNodeDataFormat,
 ) {
-    val renderedData = remember(detail.path, detail.stat.version, format) {
-        detail.renderData(format)
-    }
     val textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
     SelectionContainer {
         if (format == ZNodeDataFormat.Json && !renderedData.startsWith(InvalidJsonPrefix)) {
@@ -204,18 +224,48 @@ private fun NodeDataText(
 }
 
 @Composable
-private fun DataFormatButton(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
+private fun DataFormatSegmentedControl(
+    selectedFormat: ZNodeDataFormat,
+    onSelectFormat: (ZNodeDataFormat) -> Unit,
 ) {
-    if (selected) {
-        Button(onClick = onClick) {
-            Text(label)
-        }
-    } else {
-        OutlinedButton(onClick = onClick) {
-            Text(label)
+    val items = listOf(
+        ZNodeDataFormat.Text to "Text",
+        ZNodeDataFormat.Json to "JSON",
+        ZNodeDataFormat.Hex to "Hex",
+    )
+    Row(
+        modifier = Modifier
+            .height(ShellMetrics.ControlHeight)
+            .clip(ShellMetrics.FieldShape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f), ShellMetrics.FieldShape),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items.forEachIndexed { index, (format, label) ->
+            val selected = selectedFormat == format
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(78.dp)
+                    .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .clickable { onSelectFormat(format) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (index < items.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .padding(vertical = 8.dp)
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
+                )
+            }
         }
     }
 }
@@ -394,6 +444,8 @@ private fun ByteArray.toHexPreview(): String {
     return lines.joinToString("\n") + suffix
 }
 
+private fun Int.toDisplaySize(): String =
+    if (this >= 1024) "${this / 1024}.${((this % 1024) * 10 / 1024)} KB" else "$this B"
 
 private const val MaxDataPreviewChars = 64 * 1024
 private const val MaxHexPreviewBytes = 16 * 1024

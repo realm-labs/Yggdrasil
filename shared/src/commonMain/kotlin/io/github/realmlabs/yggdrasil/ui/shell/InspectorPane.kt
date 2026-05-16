@@ -2,37 +2,74 @@ package io.github.realmlabs.yggdrasil.ui.shell
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toString
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.realmlabs.yggdrasil.application.state.*
-import io.github.realmlabs.yggdrasil.domain.model.*
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
+import io.github.realmlabs.yggdrasil.application.state.AppState
+import io.github.realmlabs.yggdrasil.application.state.ZNodeDetailState
+import io.github.realmlabs.yggdrasil.domain.model.ZNodeAcl
+import io.github.realmlabs.yggdrasil.domain.model.ZNodePermission
+import io.github.realmlabs.yggdrasil.domain.model.ZNodeStat
 
 @Composable
 fun InspectorPane(
     state: AppState,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
     onEditAcl: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Panel(
-        title = "Inspector",
-        modifier = modifier,
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(if (expanded) 16.dp else 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = if (expanded) Alignment.Start else Alignment.CenterHorizontally,
     ) {
+        if (!expanded) {
+            IconButton(
+                onClick = onToggleExpanded,
+                modifier = Modifier.size(ShellMetrics.ControlHeight),
+            ) {
+                Text("‹", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            return@Column
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ShellMetrics.ControlHeight)
+                .clip(ShellMetrics.TreeRowShape)
+                .clickable(onClick = onToggleExpanded),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Inspector",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Box(
+                modifier = Modifier.size(ShellMetrics.ControlHeight),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "›",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -49,8 +86,11 @@ fun InspectorPane(
                     OutlinedButton(
                         onClick = onEditAcl,
                         enabled = detail != null && !state.isReadOnly,
+                        modifier = Modifier.size(ShellMetrics.CompactControlHeight),
+                        shape = ShellMetrics.FieldShape,
+                        contentPadding = PaddingValues(0.dp),
                     ) {
-                        Text("Edit")
+                        Text("✎")
                     }
                 },
             )
@@ -79,9 +119,10 @@ private fun InspectorSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-            .padding(10.dp),
+            .clip(ShellMetrics.CardShape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f), ShellMetrics.CardShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -171,4 +212,3 @@ private fun Long.toZxidLabel(): String =
 
 private fun AppState.modeLabel(): String =
     if (isReadOnly) "Read only" else "Read/write"
-
