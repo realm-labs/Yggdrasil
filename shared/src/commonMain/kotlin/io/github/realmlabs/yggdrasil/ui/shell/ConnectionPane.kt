@@ -1,32 +1,32 @@
 package io.github.realmlabs.yggdrasil.ui.shell
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.realmlabs.yggdrasil.application.state.*
+import io.github.realmlabs.yggdrasil.application.state.AppState
+import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
 import io.github.realmlabs.yggdrasil.domain.model.*
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 
 @Composable
 fun ConnectionPane(
     state: AppState,
     onSelectConnection: (ConnectionId) -> Unit,
+    onEditConnection: (ConnectionProfile) -> Unit,
     onDeleteConnection: (ConnectionId) -> Unit,
     onTestConnection: (ConnectionId) -> Unit,
     modifier: Modifier = Modifier,
@@ -59,6 +59,7 @@ fun ConnectionPane(
                     selected = connection.id == state.activeConnectionId,
                     onClick = { onSelectConnection(connection.id) },
                     onTest = { onTestConnection(connection.id) },
+                    onEdit = { onEditConnection(connection) },
                     onDelete = { onDeleteConnection(connection.id) },
                 )
             }
@@ -73,6 +74,7 @@ private fun ConnectionRow(
     selected: Boolean,
     onClick: () -> Unit,
     onTest: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
@@ -109,47 +111,182 @@ private fun ConnectionRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
-            text = if (connection.mode == ConnectionMode.ReadWrite) "Read/write" else "Read only",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(
-                onClick = onTest,
+            Text(
+                text = if (connection.mode == ConnectionMode.ReadWrite) "Read/write" else "Read only",
                 modifier = Modifier.weight(1f),
-                enabled = status != ConnectionRuntimeStatus.Connecting,
-            ) {
-                Text(if (status == ConnectionRuntimeStatus.Connecting) "Testing" else "Test")
-            }
-            TextButton(
-                onClick = onDelete,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Delete")
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                ConnectionActionButton(
+                    label = if (status == ConnectionRuntimeStatus.Connecting) "Testing connection" else "Test connection",
+                    icon = ConnectionActionIcon.Test,
+                    enabled = status != ConnectionRuntimeStatus.Connecting,
+                    onClick = onTest,
+                )
+                ConnectionActionButton(
+                    label = "Edit connection",
+                    icon = ConnectionActionIcon.Edit,
+                    onClick = onEdit,
+                )
+                ConnectionActionButton(
+                    label = "Delete connection",
+                    icon = ConnectionActionIcon.Delete,
+                    onClick = onDelete,
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConnectionActionButton(
+    label: String,
+    icon: ConnectionActionIcon,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = {
+            PlainTooltip {
+                Text(label)
+            }
+        },
+        state = rememberTooltipState(),
+    ) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier
+                .size(36.dp)
+                .semantics { contentDescription = label },
+        ) {
+            ConnectionActionIconCanvas(
+                icon = icon,
+                enabled = enabled,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConnectionActionIconCanvas(
+    icon: ConnectionActionIcon,
+    enabled: Boolean,
+) {
+    val color = if (enabled) {
+        when (icon) {
+            ConnectionActionIcon.Delete -> MaterialTheme.colorScheme.error
+            else -> MaterialTheme.colorScheme.primary
+        }
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
+    }
+
+    Canvas(Modifier.size(18.dp)) {
+        val strokeWidth = 2.dp.toPx()
+        when (icon) {
+            ConnectionActionIcon.Test -> {
+                drawCircle(
+                    color = color,
+                    radius = size.minDimension * 0.28f,
+                    center = Offset(size.width * 0.42f, size.height * 0.50f),
+                    style = Stroke(width = strokeWidth),
+                )
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.62f, size.height * 0.50f),
+                    end = Offset(size.width * 0.92f, size.height * 0.50f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.82f, size.height * 0.34f),
+                    end = Offset(size.width * 0.82f, size.height * 0.66f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
+
+            ConnectionActionIcon.Edit -> {
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.24f, size.height * 0.76f),
+                    end = Offset(size.width * 0.76f, size.height * 0.24f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.64f, size.height * 0.16f),
+                    end = Offset(size.width * 0.84f, size.height * 0.36f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.18f, size.height * 0.82f),
+                    end = Offset(size.width * 0.36f, size.height * 0.76f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
+
+            ConnectionActionIcon.Delete -> {
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.24f, size.height * 0.30f),
+                    end = Offset(size.width * 0.76f, size.height * 0.30f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = color,
+                    start = Offset(size.width * 0.40f, size.height * 0.18f),
+                    end = Offset(size.width * 0.60f, size.height * 0.18f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(size.width * 0.30f, size.height * 0.38f),
+                    size = androidx.compose.ui.geometry.Size(size.width * 0.40f, size.height * 0.44f),
+                    style = Stroke(width = strokeWidth),
+                )
+            }
+        }
+    }
+}
+
+private enum class ConnectionActionIcon {
+    Test,
+    Edit,
+    Delete,
+}
+
 @Composable
 fun ConnectionDialog(
+    profile: ConnectionProfile? = null,
     onDismiss: () -> Unit,
     onSave: (ConnectionProfileDraft) -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
-    var connectionString by remember { mutableStateOf("") }
-    var chroot by remember { mutableStateOf("") }
-    var readWrite by remember { mutableStateOf(false) }
+    var name by remember(profile?.id) { mutableStateOf(profile?.name.orEmpty()) }
+    var connectionString by remember(profile?.id) { mutableStateOf(profile?.connectionString.orEmpty()) }
+    var chroot by remember(profile?.id) { mutableStateOf(profile?.chroot?.value.orEmpty()) }
+    var readWrite by remember(profile?.id) { mutableStateOf(profile?.mode == ConnectionMode.ReadWrite) }
     var validationMessage by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("New ZooKeeper connection")
+            Text(if (profile == null) "New ZooKeeper connection" else "Edit ZooKeeper connection")
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

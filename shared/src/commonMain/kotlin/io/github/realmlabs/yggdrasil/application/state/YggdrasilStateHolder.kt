@@ -131,6 +131,58 @@ class YggdrasilStateHolder(
         }
     }
 
+    suspend fun updateConnection(
+        connectionId: ConnectionId,
+        draft: ConnectionProfileDraft,
+    ) {
+        val repository = connectionProfileRepository ?: return
+        val existing = state.connections.firstOrNull { it.id == connectionId } ?: return
+        val profile = when (val result = draft.toProfile(connectionId)) {
+            is OperationResult.Success -> result.value.copy(
+                security = existing.security,
+                tags = existing.tags,
+            )
+
+            is OperationResult.Failure -> {
+                reportError(result.error)
+                return
+            }
+        }
+
+        when (val result = repository.saveProfile(profile)) {
+            is OperationResult.Success -> {
+                val nextConnections = state.connections
+                    .filterNot { it.id == connectionId }
+                    .plus(profile)
+                    .sortedBy { it.name.lowercase() }
+                val isActive = state.activeConnectionId == connectionId
+                if (isActive) {
+                    zNodeRepository?.closeConnection(connectionId)
+                }
+
+                state = state.copy(
+                    connections = nextConnections,
+                    connectionStatuses = state.connectionStatuses + (connectionId to ConnectionRuntimeStatus.Disconnected),
+                    nodeSelection = if (isActive) NodeSelectionState.None else state.nodeSelection,
+                    znodeChildren = if (isActive) emptyMap() else state.znodeChildren,
+                    nodeDetail = if (isActive) ZNodeDetailState.None else state.nodeDetail,
+                    deletePreview = if (isActive) DeletePreviewState.None else state.deletePreview,
+                    watchState = if (isActive) ZNodeWatchState() else state.watchState,
+                    searchState = if (isActive) ZNodeSearchState.Idle else state.searchState,
+                    exportState = if (isActive) ZNodeExportState.Idle else state.exportState,
+                    importState = if (isActive) ZNodeImportState.Idle else state.importState,
+                    compareState = if (isActive) ZNodeCompareState.Idle else state.compareState,
+                    statusMessage = "Updated ${profile.name}",
+                )
+                if (isActive) {
+                    selectPath(ZNodePath.Root)
+                }
+            }
+
+            is OperationResult.Failure -> reportError(result.error)
+        }
+    }
+
     suspend fun deleteConnection(connectionId: ConnectionId) {
         val repository = connectionProfileRepository ?: return
         val connection = state.connections.firstOrNull { it.id == connectionId } ?: return

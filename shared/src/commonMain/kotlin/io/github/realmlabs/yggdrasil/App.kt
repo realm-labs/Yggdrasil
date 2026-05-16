@@ -54,6 +54,7 @@ fun App() {
             state = stateHolder.state,
             onSelectConnection = { id -> coroutineScope.launch { stateHolder.selectConnection(id) } },
             onCreateConnection = { draft -> coroutineScope.launch { stateHolder.createConnection(draft) } },
+            onUpdateConnection = { id, draft -> coroutineScope.launch { stateHolder.updateConnection(id, draft) } },
             onDeleteConnection = { id -> coroutineScope.launch { stateHolder.deleteConnection(id) } },
             onTestConnection = { id -> coroutineScope.launch { stateHolder.testConnection(id) } },
             onSelectPath = { path -> coroutineScope.launch { stateHolder.selectPath(path) } },

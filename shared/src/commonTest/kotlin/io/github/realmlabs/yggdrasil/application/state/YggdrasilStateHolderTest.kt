@@ -1,6 +1,7 @@
 package io.github.realmlabs.yggdrasil.application.state
 
 import io.github.realmlabs.yggdrasil.domain.model.*
+import io.github.realmlabs.yggdrasil.domain.repository.ConnectionProfileRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ZNodeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -90,6 +91,50 @@ class YggdrasilStateHolderTest {
 
         assertEquals(staging.id, holder.state.activeConnectionId)
         assertEquals(listOf(local.id), repository.closedConnectionIds)
+    }
+
+    @Test
+    fun updateConnectionPreservesIdAndReloadsActiveConnection() {
+        val connection = ConnectionProfile(
+            id = ConnectionId("local"),
+            name = "Local",
+            connectionString = "localhost:2181",
+            mode = ConnectionMode.ReadOnly,
+        )
+        val profileRepository = FakeConnectionProfileRepository()
+        val zNodeRepository = FakeZNodeRepository(
+            children = emptyList(),
+            detail = ZNodeDetail(path = ZNodePath.Root),
+        )
+        val holder = YggdrasilStateHolder(
+            connectionProfileRepository = profileRepository,
+            zNodeRepository = zNodeRepository,
+            initialState = AppState(
+                connections = listOf(connection),
+                activeConnectionId = connection.id,
+                nodeSelection = NodeSelectionState.SelectedPath(ZNodePath.requireValid("/old")),
+            ),
+        )
+
+        runBlocking {
+            holder.updateConnection(
+                connectionId = connection.id,
+                draft = ConnectionProfileDraft(
+                    name = "Local RW",
+                    connectionString = "localhost:2182",
+                    mode = ConnectionMode.ReadWrite,
+                ),
+            )
+        }
+
+        val saved = assertNotNull(profileRepository.savedProfile)
+        assertEquals(connection.id, saved.id)
+        assertEquals("Local RW", saved.name)
+        assertEquals("localhost:2182", saved.connectionString)
+        assertEquals(ConnectionMode.ReadWrite, saved.mode)
+        assertEquals(listOf(connection.id), zNodeRepository.closedConnectionIds)
+        assertEquals(ZNodePath.Root, holder.state.selectedPath)
+        assertFalse(holder.state.isReadOnly)
     }
 
     @Test
@@ -351,5 +396,20 @@ class YggdrasilStateHolderTest {
             path: ZNodePath,
         ): Flow<ZNodeWatchEvent> =
             emptyFlow()
+    }
+
+    private class FakeConnectionProfileRepository : ConnectionProfileRepository {
+        var savedProfile: ConnectionProfile? = null
+
+        override suspend fun loadProfiles(): OperationResult<List<ConnectionProfile>> =
+            OperationResult.Success(emptyList())
+
+        override suspend fun saveProfile(profile: ConnectionProfile): OperationResult<Unit> {
+            savedProfile = profile
+            return OperationResult.Success(Unit)
+        }
+
+        override suspend fun deleteProfile(id: ConnectionId): OperationResult<Unit> =
+            OperationResult.Success(Unit)
     }
 }

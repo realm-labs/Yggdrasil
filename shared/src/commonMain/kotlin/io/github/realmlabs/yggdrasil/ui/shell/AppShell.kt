@@ -15,6 +15,7 @@ fun AppShell(
     state: AppState,
     onSelectConnection: (ConnectionId) -> Unit,
     onCreateConnection: (ConnectionProfileDraft) -> Unit,
+    onUpdateConnection: (ConnectionId, ConnectionProfileDraft) -> Unit,
     onDeleteConnection: (ConnectionId) -> Unit,
     onTestConnection: (ConnectionId) -> Unit,
     onSelectPath: (ZNodePath) -> Unit,
@@ -38,6 +39,7 @@ fun AppShell(
     var showDeleteNodeDialog by remember { mutableStateOf(false) }
     var showAclDialog by remember { mutableStateOf(false) }
     var showCommandDialog by remember { mutableStateOf(false) }
+    var editingConnection by remember { mutableStateOf<ConnectionProfile?>(null) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -53,6 +55,7 @@ fun AppShell(
                 ConnectionPane(
                     state = state,
                     onSelectConnection = onSelectConnection,
+                    onEditConnection = { connection -> editingConnection = connection },
                     onDeleteConnection = onDeleteConnection,
                     onTestConnection = onTestConnection,
                     modifier = Modifier.width(260.dp).fillMaxHeight(),
@@ -91,6 +94,17 @@ fun AppShell(
             onSave = { draft ->
                 onCreateConnection(draft)
                 showConnectionDialog = false
+            },
+        )
+    }
+
+    editingConnection?.let { connection ->
+        ConnectionDialog(
+            profile = connection,
+            onDismiss = { editingConnection = null },
+            onSave = { draft ->
+                onUpdateConnection(connection.id, draft)
+                editingConnection = null
             },
         )
     }
