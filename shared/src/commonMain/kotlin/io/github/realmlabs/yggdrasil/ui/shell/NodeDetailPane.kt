@@ -1,25 +1,29 @@
 package io.github.realmlabs.yggdrasil.ui.shell
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import io.github.realmlabs.yggdrasil.application.state.*
-import io.github.realmlabs.yggdrasil.domain.model.*
+import io.github.realmlabs.yggdrasil.application.state.AppState
+import io.github.realmlabs.yggdrasil.application.state.ZNodeDetailState
+import io.github.realmlabs.yggdrasil.domain.model.ZNodeDataFormat
+import io.github.realmlabs.yggdrasil.domain.model.ZNodeDetail
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
@@ -159,12 +163,42 @@ private fun NodeDataViewer(
                     textStyle = MaterialTheme.typography.bodyMedium,
                 )
             } else {
-                Text(
-                    text = detail.renderData(selectedFormat),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                NodeDataText(detail = detail, format = selectedFormat)
             }
+        }
+    }
+}
+
+@Composable
+private fun NodeDataText(
+    detail: ZNodeDetail,
+    format: ZNodeDataFormat,
+) {
+    val renderedData = remember(detail.path, detail.stat.version, format) {
+        detail.renderData(format)
+    }
+    val textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
+    SelectionContainer {
+        if (format == ZNodeDataFormat.Json && !renderedData.startsWith(InvalidJsonPrefix)) {
+            Text(
+                text = highlightJson(
+                    json = renderedData,
+                    colors = JsonSyntaxColors(
+                        punctuation = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+                        key = MaterialTheme.colorScheme.primary,
+                        string = Color(0xFF2E7D32),
+                        number = Color(0xFF8E24AA),
+                        literal = Color(0xFFC2410C),
+                    ),
+                ),
+                style = textStyle,
+            )
+        } else {
+            Text(
+                text = renderedData,
+                style = textStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -218,8 +252,118 @@ private fun ZNodeDetail.renderJsonData(): String {
     return try {
         PrettyJson.encodeToString<JsonElement>(PrettyJson.parseToJsonElement(text))
     } catch (_: Exception) {
-        "Invalid JSON\n\n$text"
+        "$InvalidJsonPrefix\n\n$text"
     }
+}
+
+private data class JsonSyntaxColors(
+    val punctuation: Color,
+    val key: Color,
+    val string: Color,
+    val number: Color,
+    val literal: Color,
+)
+
+private fun highlightJson(
+    json: String,
+    colors: JsonSyntaxColors,
+): AnnotatedString {
+    val builder = AnnotatedString.Builder()
+    var index = 0
+
+    while (index < json.length) {
+        val char = json[index]
+        when {
+            char == '"' -> {
+                val end = json.findStringEnd(index)
+                val style = if (json.isObjectKey(end + 1)) {
+                    SpanStyle(color = colors.key, fontWeight = FontWeight.Medium)
+                } else {
+                    SpanStyle(color = colors.string)
+                }
+                builder.withStyle(style) {
+                    append(json.substring(index, end + 1))
+                }
+                index = end + 1
+            }
+
+            char == '-' || char.isDigit() -> {
+                val end = json.findNumberEnd(index)
+                builder.withStyle(SpanStyle(color = colors.number)) {
+                    append(json.substring(index, end))
+                }
+                index = end
+            }
+
+            json.startsWithLiteral(index, "true") ||
+                    json.startsWithLiteral(index, "false") ||
+                    json.startsWithLiteral(index, "null") -> {
+                val literal = when {
+                    json.startsWithLiteral(index, "true") -> "true"
+                    json.startsWithLiteral(index, "false") -> "false"
+                    else -> "null"
+                }
+                builder.withStyle(SpanStyle(color = colors.literal, fontWeight = FontWeight.Medium)) {
+                    append(literal)
+                }
+                index += literal.length
+            }
+
+            char in "{}[]:," -> {
+                builder.withStyle(SpanStyle(color = colors.punctuation)) {
+                    append(char)
+                }
+                index += 1
+            }
+
+            else -> {
+                builder.append(char)
+                index += 1
+            }
+        }
+    }
+
+    return builder.toAnnotatedString()
+}
+
+private fun String.findStringEnd(start: Int): Int {
+    var index = start + 1
+    var escaping = false
+    while (index < length) {
+        val char = this[index]
+        when {
+            escaping -> escaping = false
+            char == '\\' -> escaping = true
+            char == '"' -> return index
+        }
+        index += 1
+    }
+    return lastIndex
+}
+
+private fun String.isObjectKey(start: Int): Boolean {
+    var index = start
+    while (index < length && this[index].isWhitespace()) {
+        index += 1
+    }
+    return index < length && this[index] == ':'
+}
+
+private fun String.findNumberEnd(start: Int): Int {
+    var index = start + 1
+    while (index < length && this[index] in "0123456789.eE+-") {
+        index += 1
+    }
+    return index
+}
+
+private fun String.startsWithLiteral(
+    index: Int,
+    literal: String,
+): Boolean {
+    if (!startsWith(literal, index)) return false
+    val end = index + literal.length
+    return end == length || !this[end].isLetterOrDigit()
 }
 
 private fun ByteArray.toTextPreview(): String {
@@ -253,3 +397,4 @@ private fun ByteArray.toHexPreview(): String {
 
 private const val MaxDataPreviewChars = 64 * 1024
 private const val MaxHexPreviewBytes = 16 * 1024
+private const val InvalidJsonPrefix = "Invalid JSON"
