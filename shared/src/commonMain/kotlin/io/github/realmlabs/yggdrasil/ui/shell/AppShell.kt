@@ -16,12 +16,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,32 +42,44 @@ import io.github.realmlabs.yggdrasil.application.state.NodeSelectionState
 import io.github.realmlabs.yggdrasil.domain.model.ConnectionId
 import io.github.realmlabs.yggdrasil.domain.model.ConnectionMode
 import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfile
+import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfileDraft
+import io.github.realmlabs.yggdrasil.domain.model.OperationResult
 import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
 
 @Composable
 fun AppShell(
     state: AppState,
     onSelectConnection: (ConnectionId) -> Unit,
+    onCreateConnection: (ConnectionProfileDraft) -> Unit,
+    onDeleteConnection: (ConnectionId) -> Unit,
+    onTestConnection: (ConnectionId) -> Unit,
     onSelectPath: (ZNodePath) -> Unit,
     onClearSelection: () -> Unit,
 ) {
+    var showConnectionDialog by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(Modifier.fillMaxSize()) {
-            TopBar(state)
+            TopBar(
+                state = state,
+                onNewConnection = { showConnectionDialog = true },
+            )
             Row(Modifier.weight(1f).fillMaxWidth()) {
                 ConnectionPane(
                     state = state,
                     onSelectConnection = onSelectConnection,
-                    modifier = Modifier.width(280.dp).fillMaxHeight(),
+                    onDeleteConnection = onDeleteConnection,
+                    onTestConnection = onTestConnection,
+                    modifier = Modifier.width(260.dp).fillMaxHeight(),
                 )
                 DividerLine(vertical = true)
                 TreePane(
                     state = state,
                     onSelectPath = onSelectPath,
-                    modifier = Modifier.width(320.dp).fillMaxHeight(),
+                    modifier = Modifier.width(300.dp).fillMaxHeight(),
                 )
                 DividerLine(vertical = true)
                 NodeDetailPane(
@@ -71,17 +90,30 @@ fun AppShell(
                 DividerLine(vertical = true)
                 InspectorPane(
                     state = state,
-                    modifier = Modifier.width(300.dp).fillMaxHeight(),
+                    modifier = Modifier.width(280.dp).fillMaxHeight(),
                 )
             }
             DividerLine(vertical = false)
             StatusBar(state)
         }
     }
+
+    if (showConnectionDialog) {
+        ConnectionDialog(
+            onDismiss = { showConnectionDialog = false },
+            onSave = { draft ->
+                onCreateConnection(draft)
+                showConnectionDialog = false
+            },
+        )
+    }
 }
 
 @Composable
-private fun TopBar(state: AppState) {
+private fun TopBar(
+    state: AppState,
+    onNewConnection: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -104,7 +136,7 @@ private fun TopBar(state: AppState) {
         OutlinedButton(onClick = {}) {
             Text("Command")
         }
-        Button(onClick = {}) {
+        Button(onClick = onNewConnection) {
             Text("New connection")
         }
     }
@@ -114,12 +146,22 @@ private fun TopBar(state: AppState) {
 private fun ConnectionPane(
     state: AppState,
     onSelectConnection: (ConnectionId) -> Unit,
+    onDeleteConnection: (ConnectionId) -> Unit,
+    onTestConnection: (ConnectionId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Panel(
         title = "Connections",
         modifier = modifier,
     ) {
+        if (state.isLoadingConnections) {
+            EmptyPanelMessage(
+                title = "Loading connections",
+                body = "Saved connection profiles are being loaded.",
+            )
+            return@Panel
+        }
+
         if (state.connections.isEmpty()) {
             EmptyPanelMessage(
                 title = "No saved connections",
@@ -135,6 +177,8 @@ private fun ConnectionPane(
                     status = state.connectionStatuses[connection.id] ?: ConnectionRuntimeStatus.Disconnected,
                     selected = connection.id == state.activeConnectionId,
                     onClick = { onSelectConnection(connection.id) },
+                    onTest = { onTestConnection(connection.id) },
+                    onDelete = { onDeleteConnection(connection.id) },
                 )
             }
         }
@@ -147,6 +191,8 @@ private fun ConnectionRow(
     status: ConnectionRuntimeStatus,
     selected: Boolean,
     onClick: () -> Unit,
+    onTest: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
     val background = if (selected) {
@@ -187,6 +233,142 @@ private fun ConnectionRow(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick = onTest,
+                modifier = Modifier.weight(1f),
+                enabled = status != ConnectionRuntimeStatus.Connecting,
+            ) {
+                Text(if (status == ConnectionRuntimeStatus.Connecting) "Testing" else "Test")
+            }
+            TextButton(
+                onClick = onDelete,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Delete")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionDialog(
+    onDismiss: () -> Unit,
+    onSave: (ConnectionProfileDraft) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var connectionString by remember { mutableStateOf("") }
+    var chroot by remember { mutableStateOf("") }
+    var readWrite by remember { mutableStateOf(false) }
+    var validationMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("New ZooKeeper connection")
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextField(
+                    value = connectionString,
+                    onValueChange = { connectionString = it },
+                    label = { Text("Connection string") },
+                    placeholder = { Text("localhost:2181") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextField(
+                    value = chroot,
+                    onValueChange = { chroot = it },
+                    label = { Text("Chroot") },
+                    placeholder = { Text("/app") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ModeButton(
+                        text = "Read only",
+                        selected = !readWrite,
+                        onClick = { readWrite = false },
+                        modifier = Modifier.weight(1f),
+                    )
+                    ModeButton(
+                        text = "Read/write",
+                        selected = readWrite,
+                        onClick = { readWrite = true },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                validationMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val draft = ConnectionProfileDraft(
+                        name = name,
+                        connectionString = connectionString,
+                        chroot = chroot,
+                        mode = if (readWrite) ConnectionMode.ReadWrite else ConnectionMode.ReadOnly,
+                    )
+                    when (val validation = draft.toProfile(ConnectionId("validation"))) {
+                        is OperationResult.Success -> onSave(draft)
+                        is OperationResult.Failure -> validationMessage = validation.error.message
+                    }
+                },
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+@Composable
+private fun ModeButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (selected) {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+        ) {
+            Text(text)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+        ) {
+            Text(text)
+        }
     }
 }
 

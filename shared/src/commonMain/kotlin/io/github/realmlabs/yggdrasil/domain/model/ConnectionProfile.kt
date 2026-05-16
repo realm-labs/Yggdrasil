@@ -21,6 +21,54 @@ data class ConnectionProfile(
     }
 }
 
+data class ConnectionProfileDraft(
+    val name: String = "",
+    val connectionString: String = "",
+    val chroot: String = "",
+    val mode: ConnectionMode = ConnectionMode.ReadOnly,
+) {
+    fun toProfile(id: ConnectionId): OperationResult<ConnectionProfile> {
+        val trimmedName = name.trim()
+        val trimmedConnectionString = connectionString.trim()
+        val trimmedChroot = chroot.trim()
+
+        if (trimmedName.isBlank()) {
+            return OperationResult.Failure(AppError.Validation("Connection name is required."))
+        }
+
+        if (trimmedConnectionString.isBlank()) {
+            return OperationResult.Failure(AppError.Validation("ZooKeeper connection string is required."))
+        }
+
+        val parsedChroot = if (trimmedChroot.isBlank()) {
+            null
+        } else {
+            when (val result = ZNodePath.parse(trimmedChroot)) {
+                is OperationResult.Success -> result.value
+                is OperationResult.Failure -> return result
+            }
+        }
+
+        return try {
+            OperationResult.Success(
+                ConnectionProfile(
+                    id = id,
+                    name = trimmedName,
+                    connectionString = trimmedConnectionString,
+                    chroot = parsedChroot,
+                    mode = mode,
+                ),
+            )
+        } catch (exception: IllegalArgumentException) {
+            OperationResult.Failure(
+                AppError.Validation(
+                    message = exception.message ?: "Connection profile is not valid.",
+                ),
+            )
+        }
+    }
+}
+
 enum class ConnectionMode {
     ReadOnly,
     ReadWrite,

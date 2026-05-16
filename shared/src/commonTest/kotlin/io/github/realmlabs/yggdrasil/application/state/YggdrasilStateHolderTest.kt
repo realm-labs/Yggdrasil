@@ -20,7 +20,7 @@ class YggdrasilStateHolderTest {
             mode = ConnectionMode.ReadWrite,
         )
         val holder = YggdrasilStateHolder(
-            AppState(
+            initialState = AppState(
                 connections = listOf(connection),
                 nodeSelection = NodeSelectionState.SelectedPath(ZNodePath.requireValid("/app")),
             ),
@@ -36,7 +36,7 @@ class YggdrasilStateHolderTest {
     @Test
     fun setConnectionsClearsRemovedActiveConnection() {
         val holder = YggdrasilStateHolder(
-            AppState(
+            initialState = AppState(
                 connections = listOf(
                     ConnectionProfile(
                         id = ConnectionId("local"),

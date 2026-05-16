@@ -26,12 +26,14 @@ Implemented:
 - Compose Desktop application shell.
 - Connection, znode, operation, and error domain models.
 - Basic application state holder.
+- Local connection profile storage.
+- ZooKeeper connection test integration through Apache Curator.
+- Connection creation, deletion, loading, and test actions in the desktop shell.
 - Path validation tests and state transition tests.
+- Connection draft and local storage tests.
 
 Not implemented yet:
 
-- Real ZooKeeper connectivity.
-- Persistent connection profile storage.
 - znode tree loading.
 - znode data editing.
 - ACL editing.
@@ -75,6 +77,8 @@ Build a native package for the current operating system:
 - Compose Multiplatform Desktop
 - Material 3
 - Kotlin Coroutines
+- Kotlinx Serialization
+- Apache Curator
 - JVM desktop packaging through the Compose Gradle plugin
 
-ZooKeeper client integration is planned for the JVM source set so the UI and domain layers remain decoupled from the concrete client implementation.
+ZooKeeper client integration lives in the JVM source set so the UI and domain layers remain decoupled from the concrete client implementation.
