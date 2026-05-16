@@ -32,6 +32,7 @@ fun AppShell(
     onImport: (ZNodeImportRequest) -> Unit,
     onCompare: (ZNodeCompareRequest) -> Unit,
     onCancelCompare: () -> Unit,
+    onExecuteZkCli: (ZkCliCommandRequest) -> Unit,
     onClearSelection: () -> Unit,
 ) {
     var showConnectionDialog by remember { mutableStateOf(false) }
@@ -161,6 +162,7 @@ fun AppShell(
             onImport = onImport,
             onCompare = onCompare,
             onCancelCompare = onCancelCompare,
+            onExecuteZkCli = onExecuteZkCli,
             onSelectPath = onSelectPath,
             onSelectConnection = onSelectConnection,
         )

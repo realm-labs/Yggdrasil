@@ -40,4 +40,35 @@ class ConnectionProfileDraftTest {
 
         assertIs<OperationResult.Failure>(result)
     }
+
+    @Test
+    fun createsProfileWithSshTunnel() {
+        val result = ConnectionProfileDraft(
+            name = "Remote",
+            connectionString = "zk.internal:2181",
+            sshTunnelEnabled = true,
+            sshHost = "bastion.example.com",
+            sshUsername = "deploy",
+            sshPort = "2222",
+            sshIdentityFile = "~/.ssh/id_ed25519",
+        ).toProfile(ConnectionId("remote"))
+
+        val profile = assertIs<OperationResult.Success<ConnectionProfile>>(result).value
+        assertEquals("bastion.example.com", profile.sshTunnel?.host)
+        assertEquals("deploy", profile.sshTunnel?.username)
+        assertEquals(2222, profile.sshTunnel?.port)
+        assertEquals("~/.ssh/id_ed25519", profile.sshTunnel?.identityFile)
+    }
+
+    @Test
+    fun rejectsIncompleteSshTunnel() {
+        val result = ConnectionProfileDraft(
+            name = "Remote",
+            connectionString = "zk.internal:2181",
+            sshTunnelEnabled = true,
+            sshHost = "bastion.example.com",
+        ).toProfile(ConnectionId("remote"))
+
+        assertIs<OperationResult.Failure>(result)
+    }
 }

@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.realmlabs.yggdrasil.application.workflow.ZNodeWorkflowService
+import io.github.realmlabs.yggdrasil.application.workflow.ZkCliCommandService
 import io.github.realmlabs.yggdrasil.domain.model.*
 import io.github.realmlabs.yggdrasil.domain.repository.ConnectionProfileRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ZNodeRepository
@@ -66,6 +67,7 @@ class YggdrasilStateHolder(
             exportState = if (activeConnectionId == null) ZNodeExportState.Idle else state.exportState,
             importState = if (activeConnectionId == null) ZNodeImportState.Idle else state.importState,
             compareState = if (activeConnectionId == null) ZNodeCompareState.Idle else state.compareState,
+            zkCliState = if (activeConnectionId == null) ZkCliState.Idle else state.zkCliState,
         )
     }
 
@@ -87,6 +89,7 @@ class YggdrasilStateHolder(
             exportState = ZNodeExportState.Idle,
             importState = ZNodeImportState.Idle,
             compareState = ZNodeCompareState.Idle,
+            zkCliState = ZkCliState.Idle,
             statusMessage = "Selected ${connection.name}",
         )
         selectPath(ZNodePath.Root)
@@ -123,6 +126,7 @@ class YggdrasilStateHolder(
                     exportState = ZNodeExportState.Idle,
                     importState = ZNodeImportState.Idle,
                     compareState = ZNodeCompareState.Idle,
+                    zkCliState = ZkCliState.Idle,
                     statusMessage = "Saved ${profile.name}",
                 )
             }
@@ -172,6 +176,7 @@ class YggdrasilStateHolder(
                     exportState = if (isActive) ZNodeExportState.Idle else state.exportState,
                     importState = if (isActive) ZNodeImportState.Idle else state.importState,
                     compareState = if (isActive) ZNodeCompareState.Idle else state.compareState,
+                    zkCliState = if (isActive) ZkCliState.Idle else state.zkCliState,
                     statusMessage = "Updated ${profile.name}",
                 )
                 if (isActive) {
@@ -207,6 +212,7 @@ class YggdrasilStateHolder(
                     exportState = if (state.activeConnectionId == connectionId) ZNodeExportState.Idle else state.exportState,
                     importState = if (state.activeConnectionId == connectionId) ZNodeImportState.Idle else state.importState,
                     compareState = if (state.activeConnectionId == connectionId) ZNodeCompareState.Idle else state.compareState,
+                    zkCliState = if (state.activeConnectionId == connectionId) ZkCliState.Idle else state.zkCliState,
                     statusMessage = "Deleted ${connection.name}",
                 )
             }
@@ -658,6 +664,36 @@ class YggdrasilStateHolder(
         )
     }
 
+    suspend fun executeZkCliCommand(request: ZkCliCommandRequest) {
+        val repository = zNodeRepository ?: return
+        val profile = state.activeConnection ?: run {
+            reportError(AppError.Connection("Select a ZooKeeper connection first."))
+            return
+        }
+        val service = ZkCliCommandService(repository)
+
+        state = state.copy(
+            zkCliState = ZkCliState.Running(request),
+            statusMessage = "Running zk command",
+        )
+        when (val result = service.execute(profile, request)) {
+            is OperationResult.Success -> {
+                state = state.copy(
+                    zkCliState = ZkCliState.Loaded(result.value),
+                    statusMessage = "ZK command completed",
+                )
+                refreshAfterZkCliCommand(request.commandLine)
+            }
+
+            is OperationResult.Failure -> {
+                state = state.copy(
+                    zkCliState = ZkCliState.Failed(request, result.error),
+                    statusMessage = result.error.message,
+                )
+            }
+        }
+    }
+
     fun watchSelectedPath(): Flow<ZNodeWatchEvent>? {
         val repository = zNodeRepository ?: return null
         val profile = state.activeConnection ?: return null
@@ -743,6 +779,13 @@ class YggdrasilStateHolder(
                     statusMessage = result.error.message,
                 )
             }
+        }
+    }
+
+    private suspend fun refreshAfterZkCliCommand(commandLine: String) {
+        val command = commandLine.trim().substringBefore(" ")
+        if (command in setOf("create", "set", "delete", "rmr", "deleteall", "setAcl")) {
+            state.selectedPath?.let { refreshSelectedPath() }
         }
     }
 }

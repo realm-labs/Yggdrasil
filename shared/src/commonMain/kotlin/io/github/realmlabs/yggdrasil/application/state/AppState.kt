@@ -18,6 +18,7 @@ data class AppState(
     val exportState: ZNodeExportState = ZNodeExportState.Idle,
     val importState: ZNodeImportState = ZNodeImportState.Idle,
     val compareState: ZNodeCompareState = ZNodeCompareState.Idle,
+    val zkCliState: ZkCliState = ZkCliState.Idle,
     val themePreference: ThemePreference = ThemePreference.System,
     val isLoadingConnections: Boolean = false,
     val statusMessage: String = "Ready",

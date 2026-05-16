@@ -1,13 +1,6 @@
 package io.github.realmlabs.yggdrasil.storage
 
-import io.github.realmlabs.yggdrasil.domain.model.AppError
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionId
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionMode
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfile
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionSecurity
-import io.github.realmlabs.yggdrasil.domain.model.OperationResult
-import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
-import io.github.realmlabs.yggdrasil.domain.model.map
+import io.github.realmlabs.yggdrasil.domain.model.*
 import io.github.realmlabs.yggdrasil.domain.repository.ConnectionProfileRepository
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -104,6 +97,7 @@ private data class ConnectionProfileRecord(
     val name: String,
     val connectionString: String,
     val chroot: String? = null,
+    val sshTunnel: SshTunnelRecord? = null,
     val mode: String = ConnectionMode.ReadOnly.name,
     val tags: List<String> = emptyList(),
 ) {
@@ -124,6 +118,7 @@ private data class ConnectionProfileRecord(
                 connectionString = connectionString,
                 chroot = parsedChroot,
                 security = ConnectionSecurity.None,
+                sshTunnel = sshTunnel?.toDomain(),
                 mode = parsedMode,
                 tags = tags.toSet(),
             )
@@ -139,8 +134,39 @@ private data class ConnectionProfileRecord(
                 name = profile.name,
                 connectionString = profile.connectionString,
                 chroot = profile.chroot?.value,
+                sshTunnel = profile.sshTunnel?.let(SshTunnelRecord::fromDomain),
                 mode = profile.mode.name,
                 tags = profile.tags.sorted(),
+            )
+    }
+}
+
+@Serializable
+private data class SshTunnelRecord(
+    val host: String,
+    val port: Int = 22,
+    val username: String,
+    val identityFile: String? = null,
+) {
+    fun toDomain(): SshTunnelConfig? =
+        try {
+            SshTunnelConfig(
+                host = host,
+                port = port,
+                username = username,
+                identityFile = identityFile,
+            )
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
+    companion object {
+        fun fromDomain(config: SshTunnelConfig): SshTunnelRecord =
+            SshTunnelRecord(
+                host = config.host,
+                port = config.port,
+                username = config.username,
+                identityFile = config.identityFile,
             )
     }
 }

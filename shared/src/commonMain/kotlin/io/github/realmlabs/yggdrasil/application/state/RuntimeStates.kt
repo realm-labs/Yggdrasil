@@ -49,6 +49,13 @@ data class ZNodeWatchState(
         get() = watchedPath != null && error == null
 }
 
+sealed interface ZkCliState {
+    data object Idle : ZkCliState
+    data class Running(val request: ZkCliCommandRequest) : ZkCliState
+    data class Loaded(val result: ZkCliCommandResult) : ZkCliState
+    data class Failed(val request: ZkCliCommandRequest, val error: AppError) : ZkCliState
+}
+
 sealed interface ZNodeSearchState {
     data object Idle : ZNodeSearchState
     data class Running(val request: ZNodeSearchRequest, val scannedNodes: Int = 0) : ZNodeSearchState

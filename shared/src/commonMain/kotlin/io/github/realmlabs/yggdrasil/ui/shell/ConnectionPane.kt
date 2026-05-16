@@ -1,9 +1,6 @@
 package io.github.realmlabs.yggdrasil.ui.shell
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -116,7 +113,10 @@ private fun ConnectionRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = if (connection.mode == ConnectionMode.ReadWrite) "Read/write" else "Read only",
+                text = buildString {
+                    append(if (connection.mode == ConnectionMode.ReadWrite) "Read/write" else "Read only")
+                    if (connection.sshTunnel != null) append(" · SSH tunnel")
+                },
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -281,6 +281,11 @@ fun ConnectionDialog(
     var connectionString by remember(profile?.id) { mutableStateOf(profile?.connectionString.orEmpty()) }
     var chroot by remember(profile?.id) { mutableStateOf(profile?.chroot?.value.orEmpty()) }
     var readWrite by remember(profile?.id) { mutableStateOf(profile?.mode == ConnectionMode.ReadWrite) }
+    var sshTunnelEnabled by remember(profile?.id) { mutableStateOf(profile?.sshTunnel != null) }
+    var sshHost by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.host.orEmpty()) }
+    var sshPort by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.port?.toString() ?: "22") }
+    var sshUsername by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.username.orEmpty()) }
+    var sshIdentityFile by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.identityFile.orEmpty()) }
     var validationMessage by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -289,7 +294,12 @@ fun ConnectionDialog(
             Text(if (profile == null) "New ZooKeeper connection" else "Edit ZooKeeper connection")
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 620.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 TextField(
                     value = name,
                     onValueChange = { name = it },
@@ -331,6 +341,55 @@ fun ConnectionDialog(
                         modifier = Modifier.weight(1f),
                     )
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = sshTunnelEnabled,
+                        onClick = { sshTunnelEnabled = !sshTunnelEnabled },
+                        label = { Text("SSH tunnel") },
+                    )
+                    Text(
+                        text = "Forward ZooKeeper through an SSH bastion",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (sshTunnelEnabled) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextField(
+                            value = sshHost,
+                            onValueChange = { sshHost = it },
+                            label = { Text("SSH host") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextField(
+                            value = sshPort,
+                            onValueChange = { sshPort = it.filter(Char::isDigit) },
+                            label = { Text("Port") },
+                            singleLine = true,
+                            modifier = Modifier.width(96.dp),
+                        )
+                    }
+                    TextField(
+                        value = sshUsername,
+                        onValueChange = { sshUsername = it },
+                        label = { Text("SSH user") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextField(
+                        value = sshIdentityFile,
+                        onValueChange = { sshIdentityFile = it },
+                        label = { Text("Identity file") },
+                        placeholder = { Text("Optional, uses ssh agent by default") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 validationMessage?.let { message ->
                     Text(
                         text = message,
@@ -348,6 +407,11 @@ fun ConnectionDialog(
                         connectionString = connectionString,
                         chroot = chroot,
                         mode = if (readWrite) ConnectionMode.ReadWrite else ConnectionMode.ReadOnly,
+                        sshTunnelEnabled = sshTunnelEnabled,
+                        sshHost = sshHost,
+                        sshPort = sshPort,
+                        sshUsername = sshUsername,
+                        sshIdentityFile = sshIdentityFile,
                     )
                     when (val validation = draft.toProfile(ConnectionId("validation"))) {
                         is OperationResult.Success -> onSave(draft)

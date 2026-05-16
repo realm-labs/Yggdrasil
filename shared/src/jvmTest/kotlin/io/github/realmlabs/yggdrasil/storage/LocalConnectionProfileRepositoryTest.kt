@@ -1,10 +1,6 @@
 package io.github.realmlabs.yggdrasil.storage
 
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionId
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionMode
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfile
-import io.github.realmlabs.yggdrasil.domain.model.OperationResult
-import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
+import io.github.realmlabs.yggdrasil.domain.model.*
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
 import kotlin.test.Test
@@ -22,6 +18,12 @@ class LocalConnectionProfileRepositoryTest {
                 name = "Local",
                 connectionString = "localhost:2181",
                 chroot = ZNodePath.requireValid("/app"),
+                sshTunnel = SshTunnelConfig(
+                    host = "bastion.example.com",
+                    port = 2222,
+                    username = "deploy",
+                    identityFile = "~/.ssh/id_ed25519",
+                ),
                 mode = ConnectionMode.ReadWrite,
             )
 

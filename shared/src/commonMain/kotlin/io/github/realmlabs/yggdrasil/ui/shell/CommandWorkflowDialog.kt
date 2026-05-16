@@ -23,6 +23,7 @@ fun CommandWorkflowDialog(
     onImport: (ZNodeImportRequest) -> Unit,
     onCompare: (ZNodeCompareRequest) -> Unit,
     onCancelCompare: () -> Unit,
+    onExecuteZkCli: (ZkCliCommandRequest) -> Unit,
     onSelectPath: (ZNodePath) -> Unit,
     onSelectConnection: (ConnectionId) -> Unit,
 ) {
@@ -47,6 +48,7 @@ fun CommandWorkflowDialog(
                 }
                 DividerLine(vertical = false)
                 when (section) {
+                    CommandSection.ZkCli -> ZkCliCommandPane(state, onExecuteZkCli)
                     CommandSection.Search -> SearchCommandPane(state, onSearch, onCancelSearch, onSelectPath)
                     CommandSection.Export -> ExportCommandPane(state, onExport)
                     CommandSection.Import -> ImportCommandPane(state, onImport)
@@ -66,6 +68,52 @@ fun CommandWorkflowDialog(
             }
         },
     )
+}
+
+@Composable
+private fun ZkCliCommandPane(
+    state: AppState,
+    onExecuteZkCli: (ZkCliCommandRequest) -> Unit,
+) {
+    var command by remember { mutableStateOf("ls /") }
+    val running = state.zkCliState is ZkCliState.Running
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = command,
+                onValueChange = { command = it },
+                label = { Text("ZK CLI") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Button(
+                enabled = command.isNotBlank() && state.activeConnection != null && !running,
+                onClick = { onExecuteZkCli(ZkCliCommandRequest(command)) },
+            ) {
+                Text("Run")
+            }
+        }
+        Text(
+            text = "Runs against ${state.activeConnection?.name ?: "no active connection"}. Write commands obey the connection mode.",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        when (val cli = state.zkCliState) {
+            ZkCliState.Idle -> EmptyPanelMessage(
+                "No command run",
+                "Try ls /, get /path, set /path value, getAcl /path, or help."
+            )
+
+            is ZkCliState.Running -> Text(
+                "Running ${cli.request.commandLine}",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            is ZkCliState.Failed -> Text(cli.error.message, color = MaterialTheme.colorScheme.error)
+            is ZkCliState.Loaded -> CommandOutput(cli.result.output)
+        }
+    }
 }
 
 @Composable
@@ -479,7 +527,19 @@ private fun ListResultRow(
     }
 }
 
+@Composable
+private fun CommandOutput(output: String) {
+    OutlinedTextField(
+        value = output,
+        onValueChange = {},
+        readOnly = true,
+        textStyle = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.fillMaxWidth().height(320.dp),
+    )
+}
+
 private enum class CommandSection(val label: String) {
+    ZkCli("ZK CLI"),
     Search("Search"),
     Export("Export"),
     Import("Import"),

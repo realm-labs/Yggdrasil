@@ -95,6 +95,9 @@ fun App() {
                 compareJob?.cancel()
                 stateHolder.markCompareCanceled()
             },
+            onExecuteZkCli = { request ->
+                coroutineScope.launch { stateHolder.executeZkCliCommand(request) }
+            },
             onClearSelection = stateHolder::clearSelection,
         )
     }
