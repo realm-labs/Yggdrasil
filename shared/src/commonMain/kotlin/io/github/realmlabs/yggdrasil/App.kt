@@ -1,15 +1,13 @@
 package io.github.realmlabs.yggdrasil
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.tooling.preview.Preview
 import io.github.realmlabs.yggdrasil.application.state.YggdrasilStateHolder
 import io.github.realmlabs.yggdrasil.domain.model.AppError
 import io.github.realmlabs.yggdrasil.platform.createYggdrasilServices
 import io.github.realmlabs.yggdrasil.ui.shell.AppShell
 import io.github.realmlabs.yggdrasil.ui.theme.YggdrasilTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
@@ -25,6 +23,8 @@ fun App() {
         )
     }
     val coroutineScope = rememberCoroutineScope()
+    var searchJob by remember { mutableStateOf<Job?>(null) }
+    var compareJob by remember { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(stateHolder) {
         stateHolder.loadConnections()
@@ -71,6 +71,28 @@ fun App() {
             onClearDeletePreview = stateHolder::clearDeletePreview,
             onUpdateAcl = { acl, expectedAversion ->
                 coroutineScope.launch { stateHolder.updateSelectedAcl(acl, expectedAversion) }
+            },
+            onSearch = { request ->
+                searchJob?.cancel()
+                searchJob = coroutineScope.launch { stateHolder.searchZNodes(request) }
+            },
+            onCancelSearch = {
+                searchJob?.cancel()
+                stateHolder.markSearchCanceled()
+            },
+            onExport = { includeAcl, dataEncoding ->
+                coroutineScope.launch { stateHolder.exportSelectedSubtree(includeAcl, dataEncoding) }
+            },
+            onImport = { request ->
+                coroutineScope.launch { stateHolder.importZNodeTree(request) }
+            },
+            onCompare = { request ->
+                compareJob?.cancel()
+                compareJob = coroutineScope.launch { stateHolder.compareConnections(request) }
+            },
+            onCancelCompare = {
+                compareJob?.cancel()
+                stateHolder.markCompareCanceled()
             },
             onClearSelection = stateHolder::clearSelection,
         )

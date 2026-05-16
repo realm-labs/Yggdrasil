@@ -3,6 +3,7 @@ package io.github.realmlabs.yggdrasil.application.state
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.github.realmlabs.yggdrasil.application.workflow.ZNodeWorkflowService
 import io.github.realmlabs.yggdrasil.domain.model.*
 import io.github.realmlabs.yggdrasil.domain.repository.ConnectionProfileRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ZNodeRepository
@@ -61,6 +62,10 @@ class YggdrasilStateHolder(
             nodeDetail = if (activeConnectionId == null) ZNodeDetailState.None else state.nodeDetail,
             deletePreview = if (activeConnectionId == null) DeletePreviewState.None else state.deletePreview,
             watchState = if (activeConnectionId == null) ZNodeWatchState() else state.watchState,
+            searchState = if (activeConnectionId == null) ZNodeSearchState.Idle else state.searchState,
+            exportState = if (activeConnectionId == null) ZNodeExportState.Idle else state.exportState,
+            importState = if (activeConnectionId == null) ZNodeImportState.Idle else state.importState,
+            compareState = if (activeConnectionId == null) ZNodeCompareState.Idle else state.compareState,
         )
     }
 
@@ -78,6 +83,10 @@ class YggdrasilStateHolder(
             nodeDetail = ZNodeDetailState.None,
             deletePreview = DeletePreviewState.None,
             watchState = ZNodeWatchState(),
+            searchState = ZNodeSearchState.Idle,
+            exportState = ZNodeExportState.Idle,
+            importState = ZNodeImportState.Idle,
+            compareState = ZNodeCompareState.Idle,
             statusMessage = "Selected ${connection.name}",
         )
         selectPath(ZNodePath.Root)
@@ -110,6 +119,10 @@ class YggdrasilStateHolder(
                     znodeChildren = emptyMap(),
                     nodeDetail = ZNodeDetailState.None,
                     watchState = ZNodeWatchState(),
+                    searchState = ZNodeSearchState.Idle,
+                    exportState = ZNodeExportState.Idle,
+                    importState = ZNodeImportState.Idle,
+                    compareState = ZNodeCompareState.Idle,
                     statusMessage = "Saved ${profile.name}",
                 )
             }
@@ -138,6 +151,10 @@ class YggdrasilStateHolder(
                     nodeDetail = if (state.activeConnectionId == connectionId) ZNodeDetailState.None else state.nodeDetail,
                     deletePreview = if (state.activeConnectionId == connectionId) DeletePreviewState.None else state.deletePreview,
                     watchState = if (state.activeConnectionId == connectionId) ZNodeWatchState() else state.watchState,
+                    searchState = if (state.activeConnectionId == connectionId) ZNodeSearchState.Idle else state.searchState,
+                    exportState = if (state.activeConnectionId == connectionId) ZNodeExportState.Idle else state.exportState,
+                    importState = if (state.activeConnectionId == connectionId) ZNodeImportState.Idle else state.importState,
+                    compareState = if (state.activeConnectionId == connectionId) ZNodeCompareState.Idle else state.compareState,
                     statusMessage = "Deleted ${connection.name}",
                 )
             }
@@ -422,6 +439,171 @@ class YggdrasilStateHolder(
 
             is OperationResult.Failure -> reportError(result.error)
         }
+    }
+
+    suspend fun searchZNodes(request: ZNodeSearchRequest) {
+        val repository = zNodeRepository ?: return
+        val profile = state.activeConnection ?: run {
+            reportError(AppError.Connection("Select a ZooKeeper connection first."))
+            return
+        }
+        val service = ZNodeWorkflowService(repository)
+
+        state = state.copy(
+            searchState = ZNodeSearchState.Running(request),
+            statusMessage = "Searching from ${request.rootPath}",
+        )
+        when (val result = service.search(profile, request) { scanned ->
+            state = state.copy(
+                searchState = ZNodeSearchState.Running(request, scanned),
+                statusMessage = "Searching from ${request.rootPath} · scanned $scanned",
+            )
+        }) {
+            is OperationResult.Success -> {
+                state = state.copy(
+                    searchState = ZNodeSearchState.Loaded(result.value),
+                    statusMessage = "Search found ${result.value.hits.size} hit${if (result.value.hits.size == 1) "" else "s"} · scanned ${result.value.scannedNodes}",
+                )
+            }
+
+            is OperationResult.Failure -> {
+                state = state.copy(
+                    searchState = ZNodeSearchState.Failed(request, result.error),
+                    statusMessage = result.error.message,
+                )
+            }
+        }
+    }
+
+    fun markSearchCanceled() {
+        val running = state.searchState as? ZNodeSearchState.Running ?: return
+        state = state.copy(
+            searchState = ZNodeSearchState.Loaded(
+                ZNodeSearchReport(
+                    request = running.request,
+                    hits = emptyList(),
+                    scannedNodes = running.scannedNodes,
+                    stopReason = ZNodeTraversalStopReason.Canceled,
+                ),
+            ),
+            statusMessage = "Search canceled · scanned ${running.scannedNodes}",
+        )
+    }
+
+    suspend fun exportSelectedSubtree(
+        includeAcl: Boolean,
+        dataEncoding: ZNodeDataEncoding,
+    ) {
+        val repository = zNodeRepository ?: return
+        val profile = state.activeConnection ?: run {
+            reportError(AppError.Connection("Select a ZooKeeper connection first."))
+            return
+        }
+        val path = state.selectedPath ?: run {
+            reportError(AppError.Validation("Select a root path to export."))
+            return
+        }
+        val request = ZNodeExportRequest(rootPath = path, includeAcl = includeAcl, dataEncoding = dataEncoding)
+        val service = ZNodeWorkflowService(repository)
+
+        state = state.copy(exportState = ZNodeExportState.Running(request), statusMessage = "Exporting $path")
+        when (val result = service.exportSubtree(profile, request)) {
+            is OperationResult.Success -> {
+                state = state.copy(
+                    exportState = ZNodeExportState.Loaded(result.value),
+                    statusMessage = "Exported ${result.value.exportedNodes} node${if (result.value.exportedNodes == 1) "" else "s"} from $path",
+                )
+            }
+
+            is OperationResult.Failure -> {
+                state = state.copy(
+                    exportState = ZNodeExportState.Failed(request, result.error),
+                    statusMessage = result.error.message,
+                )
+            }
+        }
+    }
+
+    suspend fun importZNodeTree(request: ZNodeImportRequest) {
+        val repository = zNodeRepository ?: return
+        val profile = requireWritableProfile() ?: return
+        val service = ZNodeWorkflowService(repository)
+
+        state = state.copy(
+            importState = ZNodeImportState.Running(request),
+            statusMessage = if (request.dryRun) "Planning import" else "Importing znodes",
+        )
+        when (val result = service.importSubtree(profile, request)) {
+            is OperationResult.Success -> {
+                state = state.copy(
+                    importState = ZNodeImportState.Loaded(result.value),
+                    statusMessage = if (request.dryRun) {
+                        "Import dry run planned ${result.value.operations.size} operation${if (result.value.operations.size == 1) "" else "s"}"
+                    } else {
+                        "Import completed · applied ${result.value.appliedCount}, failed ${result.value.failureCount}"
+                    },
+                )
+                state.selectedPath?.let { refreshSelectedPath() }
+            }
+
+            is OperationResult.Failure -> {
+                state = state.copy(
+                    importState = ZNodeImportState.Failed(request, result.error),
+                    statusMessage = result.error.message,
+                )
+            }
+        }
+    }
+
+    suspend fun compareConnections(request: ZNodeCompareRequest) {
+        val repository = zNodeRepository ?: return
+        val leftProfile = state.connections.firstOrNull { it.id == request.leftConnectionId }
+        val rightProfile = state.connections.firstOrNull { it.id == request.rightConnectionId }
+        if (leftProfile == null || rightProfile == null) {
+            reportError(AppError.Validation("Select two saved connections to compare."))
+            return
+        }
+        val service = ZNodeWorkflowService(repository)
+
+        state = state.copy(
+            compareState = ZNodeCompareState.Running(request),
+            statusMessage = "Comparing ${leftProfile.name} and ${rightProfile.name}",
+        )
+        when (val result = service.compare(leftProfile, rightProfile, request) { scanned ->
+            state = state.copy(
+                compareState = ZNodeCompareState.Running(request, scanned),
+                statusMessage = "Comparing trees · scanned $scanned",
+            )
+        }) {
+            is OperationResult.Success -> {
+                state = state.copy(
+                    compareState = ZNodeCompareState.Loaded(result.value),
+                    statusMessage = "Compare found ${result.value.differences.size} difference${if (result.value.differences.size == 1) "" else "s"} · scanned ${result.value.scannedNodes}",
+                )
+            }
+
+            is OperationResult.Failure -> {
+                state = state.copy(
+                    compareState = ZNodeCompareState.Failed(request, result.error),
+                    statusMessage = result.error.message,
+                )
+            }
+        }
+    }
+
+    fun markCompareCanceled() {
+        val running = state.compareState as? ZNodeCompareState.Running ?: return
+        state = state.copy(
+            compareState = ZNodeCompareState.Loaded(
+                ZNodeCompareReport(
+                    request = running.request,
+                    differences = emptyList(),
+                    scannedNodes = running.scannedNodes,
+                    stopReason = ZNodeTraversalStopReason.Canceled,
+                ),
+            ),
+            statusMessage = "Compare canceled · scanned ${running.scannedNodes}",
+        )
     }
 
     fun watchSelectedPath(): Flow<ZNodeWatchEvent>? {

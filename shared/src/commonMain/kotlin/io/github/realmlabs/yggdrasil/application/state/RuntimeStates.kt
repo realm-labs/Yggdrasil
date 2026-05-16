@@ -1,11 +1,6 @@
 package io.github.realmlabs.yggdrasil.application.state
 
-import io.github.realmlabs.yggdrasil.domain.model.AppError
-import io.github.realmlabs.yggdrasil.domain.model.DeleteZNodePreview
-import io.github.realmlabs.yggdrasil.domain.model.ZNodeDetail
-import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
-import io.github.realmlabs.yggdrasil.domain.model.ZNodeSummary
-import io.github.realmlabs.yggdrasil.domain.model.ZNodeWatchEvent
+import io.github.realmlabs.yggdrasil.domain.model.*
 
 
 sealed interface ConnectionRuntimeStatus {
@@ -52,6 +47,34 @@ data class ZNodeWatchState(
 ) {
     val isRegistered: Boolean
         get() = watchedPath != null && error == null
+}
+
+sealed interface ZNodeSearchState {
+    data object Idle : ZNodeSearchState
+    data class Running(val request: ZNodeSearchRequest, val scannedNodes: Int = 0) : ZNodeSearchState
+    data class Loaded(val report: ZNodeSearchReport) : ZNodeSearchState
+    data class Failed(val request: ZNodeSearchRequest?, val error: AppError) : ZNodeSearchState
+}
+
+sealed interface ZNodeExportState {
+    data object Idle : ZNodeExportState
+    data class Running(val request: ZNodeExportRequest) : ZNodeExportState
+    data class Loaded(val report: ZNodeExportReport) : ZNodeExportState
+    data class Failed(val request: ZNodeExportRequest?, val error: AppError) : ZNodeExportState
+}
+
+sealed interface ZNodeImportState {
+    data object Idle : ZNodeImportState
+    data class Running(val request: ZNodeImportRequest) : ZNodeImportState
+    data class Loaded(val report: ZNodeImportReport) : ZNodeImportState
+    data class Failed(val request: ZNodeImportRequest?, val error: AppError) : ZNodeImportState
+}
+
+sealed interface ZNodeCompareState {
+    data object Idle : ZNodeCompareState
+    data class Running(val request: ZNodeCompareRequest, val scannedNodes: Int = 0) : ZNodeCompareState
+    data class Loaded(val report: ZNodeCompareReport) : ZNodeCompareState
+    data class Failed(val request: ZNodeCompareRequest?, val error: AppError) : ZNodeCompareState
 }
 
 enum class ThemePreference {

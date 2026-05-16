@@ -25,12 +25,19 @@ fun AppShell(
     onDeletePreviewedNode: (String) -> Unit,
     onClearDeletePreview: () -> Unit,
     onUpdateAcl: (List<ZNodeAcl>, Int) -> Unit,
+    onSearch: (ZNodeSearchRequest) -> Unit,
+    onCancelSearch: () -> Unit,
+    onExport: (Boolean, ZNodeDataEncoding) -> Unit,
+    onImport: (ZNodeImportRequest) -> Unit,
+    onCompare: (ZNodeCompareRequest) -> Unit,
+    onCancelCompare: () -> Unit,
     onClearSelection: () -> Unit,
 ) {
     var showConnectionDialog by remember { mutableStateOf(false) }
     var showCreateNodeDialog by remember { mutableStateOf(false) }
     var showDeleteNodeDialog by remember { mutableStateOf(false) }
     var showAclDialog by remember { mutableStateOf(false) }
+    var showCommandDialog by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -40,6 +47,7 @@ fun AppShell(
             TopBar(
                 state = state,
                 onNewConnection = { showConnectionDialog = true },
+                onCommand = { showCommandDialog = true },
             )
             Row(Modifier.weight(1f).fillMaxWidth()) {
                 ConnectionPane(
@@ -127,5 +135,20 @@ fun AppShell(
         } else {
             showAclDialog = false
         }
+    }
+
+    if (showCommandDialog) {
+        CommandWorkflowDialog(
+            state = state,
+            onDismiss = { showCommandDialog = false },
+            onSearch = onSearch,
+            onCancelSearch = onCancelSearch,
+            onExport = onExport,
+            onImport = onImport,
+            onCompare = onCompare,
+            onCancelCompare = onCancelCompare,
+            onSelectPath = onSelectPath,
+            onSelectConnection = onSelectConnection,
+        )
     }
 }
