@@ -47,6 +47,16 @@
     <string name="connection_testing">Testing connection</string>
     <string name="connection_edit">Edit connection</string>
     <string name="connection_delete">Delete connection</string>
+    <string name="connection_disconnect">Disconnect</string>
+    <string name="connection_reconnect">Reconnect</string>
+    <string name="connection_group">Group</string>
+    <string name="connection_group_placeholder">Production, staging, local...</string>
+    <string name="connection_default_group">Ungrouped</string>
+    <string name="connection_status_connected">Connected</string>
+    <string name="connection_status_connecting">Connecting</string>
+    <string name="connection_status_disconnected">Disconnected</string>
+    <string name="connection_status_suspended">Suspended</string>
+    <string name="connection_status_lost">Lost</string>
     <string name="connection_new_title">New ZooKeeper connection</string>
     <string name="connection_edit_title">Edit ZooKeeper connection</string>
     <string name="connection_name">Name</string>
@@ -80,6 +90,9 @@
     <string name="tree_filter_placeholder">Filter znodes...</string>
     <string name="tree_refresh_selected">Refresh selected znode</string>
     <string name="tree_create_znode">Create znode</string>
+    <string name="tree_toggle_favorite">Toggle favorite path</string>
+    <string name="tree_favorites">Favorites</string>
+    <string name="tree_recent_paths">Recent</string>
     <string name="tree_no_active_connection_title">No active connection</string>
     <string name="tree_no_active_connection_body">Select a saved connection before loading the znode tree.</string>
     <string name="tree_loading_root_children">Loading root children</string>
@@ -135,6 +148,8 @@
     <string name="inspector_state_registered">Registered</string>
     <string name="inspector_state_not_registered">Not registered</string>
     <string name="inspector_last_event">Last event</string>
+    <string name="inspector_watch_events">Watch events</string>
+    <string name="inspector_connection">Connection</string>
     <string name="inspector_audit">Recent operations</string>
     <string name="inspector_recent_operations">Operations</string>
     <string name="inspector_latest">Latest</string>
@@ -222,6 +237,7 @@
     <string name="dialog_acl_high_risk">High-risk ACL: world:anyone has full permissions.</string>
 
     <string name="command_title">Command</string>
+    <string name="command_quick">Quick</string>
     <string name="command_zkcli">ZK CLI</string>
     <string name="command_search">Search</string>
     <string name="command_export">Export</string>
@@ -232,6 +248,8 @@
     <string name="command_no_run_title">No command run</string>
     <string name="command_no_run_body">Try ls /, get /path, set /path value, getAcl /path, or help.</string>
     <string name="command_running">Running %1$s</string>
+    <string name="command_jump_path">Jump path</string>
+    <string name="command_jump">Jump</string>
     <string name="command_max_depth">Max depth</string>
     <string name="command_max_nodes">Max nodes</string>
     <string name="command_no_search_title">No search yet</string>
@@ -278,6 +296,8 @@
     <string name="status_deleted_connection">Deleted %1$s</string>
     <string name="status_testing_connection">Testing %1$s</string>
     <string name="status_connected_to">Connected to %1$s</string>
+    <string name="status_disconnected_from">Disconnected from %1$s</string>
+    <string name="status_reconnecting_to">Reconnecting to %1$s</string>
     <string name="status_loading_path">Loading %1$s</string>
     <string name="status_loaded_path">Loaded %1$s</string>
     <string name="status_loading_children">Loading children for %1$s</string>
@@ -309,6 +329,8 @@
     <string name="status_running_zk_command">Running zk command</string>
     <string name="status_zk_command_completed">ZK command completed</string>
     <string name="status_watch_event">Watch event %1$s on %2$s</string>
+    <string name="status_watch_enabled">Watch enabled for %1$s</string>
+    <string name="status_watch_disabled">Watch disabled</string>
     <string name="status_selection_cleared">Selection cleared</string>
     <string name="status_settings_updated">Settings updated</string>
     <string name="status_loading_detail">Loading detail for %1$s</string>

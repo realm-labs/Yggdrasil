@@ -35,6 +35,7 @@ fun ConnectionPane(
     modifier: Modifier = Modifier,
 ) {
     val strings = Res.string
+    val defaultGroup = stringResource(strings.connection_default_group)
     Panel(
         title = stringResource(strings.connection_panel_title),
         modifier = modifier,
@@ -56,20 +57,33 @@ fun ConnectionPane(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.connections.forEach { connection ->
-                ConnectionRow(
-                    connection = connection,
-                    status = state.connectionStatuses[connection.id] ?: ConnectionRuntimeStatus.Disconnected,
-                    selected = connection.id == state.activeConnectionId,
-                    onClick = { onSelectConnection(connection.id) },
-                    onTest = { onTestConnection(connection.id) },
-                    onEdit = { onEditConnection(connection) },
-                    onDelete = { onDeleteConnection(connection.id) },
-                )
-            }
+            state.connections
+                .groupBy { it.groupLabel(defaultGroup) }
+                .toSortedMap()
+                .forEach { (group, connections) ->
+                    Text(
+                        text = group,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    connections.forEach { connection ->
+                        ConnectionRow(
+                            connection = connection,
+                            status = state.connectionStatuses[connection.id] ?: ConnectionRuntimeStatus.Disconnected,
+                            selected = connection.id == state.activeConnectionId,
+                            onClick = { onSelectConnection(connection.id) },
+                            onTest = { onTestConnection(connection.id) },
+                            onEdit = { onEditConnection(connection) },
+                            onDelete = { onDeleteConnection(connection.id) },
+                        )
+                    }
+                }
         }
     }
 }
+
+private fun ConnectionProfile.groupLabel(defaultGroup: String): String =
+    tags.firstOrNull()?.takeIf { it.isNotBlank() } ?: defaultGroup
 
 @Composable
 private fun ConnectionRow(
@@ -294,6 +308,7 @@ fun ConnectionDialog(
 ) {
     val strings = Res.string
     var name by remember(profile?.id) { mutableStateOf(profile?.name.orEmpty()) }
+    var group by remember(profile?.id) { mutableStateOf(profile?.tags?.firstOrNull().orEmpty()) }
     var connectionString by remember(profile?.id) { mutableStateOf(profile?.connectionString.orEmpty()) }
     var chroot by remember(profile?.id) { mutableStateOf(profile?.chroot?.value.orEmpty()) }
     var readWrite by remember(profile?.id) { mutableStateOf(profile?.mode == ConnectionMode.ReadWrite) }
@@ -359,6 +374,14 @@ fun ConnectionDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(strings.connection_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextField(
+                    value = group,
+                    onValueChange = { group = it },
+                    label = { Text(stringResource(strings.connection_group)) },
+                    placeholder = { Text(stringResource(strings.connection_group_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -592,6 +615,7 @@ fun ConnectionDialog(
                         name = name,
                         connectionString = connectionString,
                         chroot = chroot,
+                        group = group,
                         mode = if (readWrite) ConnectionMode.ReadWrite else ConnectionMode.ReadOnly,
                         zkDigestAuthEnabled = zkDigestAuthEnabled,
                         zkDigestUsername = zkDigestUsername,

@@ -35,6 +35,8 @@ fun AppShell(
     onUpdateConnection: (ConnectionId, ConnectionProfileDraft) -> Unit,
     onDeleteConnection: (ConnectionId) -> Unit,
     onTestConnection: (ConnectionId) -> Unit,
+    onDisconnectActiveConnection: () -> Unit,
+    onReconnectActiveConnection: () -> Unit,
     onSelectPath: (ZNodePath) -> Unit,
     onRefreshSelectedPath: () -> Unit,
     onCreateNode: (CreateZNodeRequest) -> Unit,
@@ -51,6 +53,9 @@ fun AppShell(
     onCancelCompare: () -> Unit,
     onExecuteZkCli: (ZkCliCommandRequest) -> Unit,
     onClearSelection: () -> Unit,
+    onSetWatchEnabled: (Boolean) -> Unit,
+    onClearWatchEvents: () -> Unit,
+    onToggleFavoritePath: (ZNodePath) -> Unit,
     onUpdateSettings: (AppSettings) -> Unit,
 ) {
     var showConnectionDialog by remember { mutableStateOf(false) }
@@ -136,6 +141,8 @@ fun AppShell(
                 onEditConnection = { editingConnection = it },
                 onDeleteConnection = onDeleteConnection,
                 onTestConnection = onTestConnection,
+                onDisconnectActiveConnection = onDisconnectActiveConnection,
+                onReconnectActiveConnection = onReconnectActiveConnection,
                 search = topSearch,
                 onSearchChange = { topSearch = it },
                 onRunSearch = {
@@ -157,6 +164,7 @@ fun AppShell(
                     state = state,
                     onSelectPath = onSelectPath,
                     onRefreshSelectedPath = onRefreshSelectedPath,
+                    onToggleFavoritePath = onToggleFavoritePath,
                     modifier = Modifier.width(treePaneWidth).fillMaxHeight(),
                 )
                 ResizableDivider(
@@ -188,6 +196,8 @@ fun AppShell(
                     expanded = inspectorExpanded,
                     onToggleExpanded = { inspectorExpanded = !inspectorExpanded },
                     onEditAcl = { showAclDialog = true },
+                    onSetWatchEnabled = onSetWatchEnabled,
+                    onClearWatchEvents = onClearWatchEvents,
                     modifier = Modifier.width(if (inspectorExpanded) inspectorPaneWidth else 56.dp).fillMaxHeight(),
                 )
             }
@@ -305,6 +315,10 @@ fun AppShell(
             onExecuteZkCli = onExecuteZkCli,
             onSelectPath = onSelectPath,
             onSelectConnection = onSelectConnection,
+            onRefreshSelectedPath = onRefreshSelectedPath,
+            onReconnectActiveConnection = onReconnectActiveConnection,
+            onOpenSettings = { showSettings = true },
+            onUpdateSettings = onUpdateSettings,
         )
     }
 }
@@ -321,6 +335,8 @@ private fun YggdrasilTopBar(
     onEditConnection: (ConnectionProfile) -> Unit,
     onDeleteConnection: (ConnectionId) -> Unit,
     onTestConnection: (ConnectionId) -> Unit,
+    onDisconnectActiveConnection: () -> Unit,
+    onReconnectActiveConnection: () -> Unit,
     onSettings: () -> Unit,
     onCommand: () -> Unit,
 ) {
@@ -355,6 +371,8 @@ private fun YggdrasilTopBar(
                 onEditConnection = onEditConnection,
                 onDeleteConnection = onDeleteConnection,
                 onTestConnection = onTestConnection,
+                onDisconnectActiveConnection = onDisconnectActiveConnection,
+                onReconnectActiveConnection = onReconnectActiveConnection,
             )
             ModeStatusPill(state)
             BreadcrumbPath(
@@ -561,8 +579,11 @@ private fun ConnectionStatusPill(
     onEditConnection: (ConnectionProfile) -> Unit,
     onDeleteConnection: (ConnectionId) -> Unit,
     onTestConnection: (ConnectionId) -> Unit,
+    onDisconnectActiveConnection: () -> Unit,
+    onReconnectActiveConnection: () -> Unit,
 ) {
     val strings = Res.string
+    val defaultGroup = stringResource(strings.connection_default_group)
     var expanded by remember { mutableStateOf(false) }
     val connection = state.activeConnection
     val status = connection?.let { state.connectionStatuses[it.id] } ?: ConnectionRuntimeStatus.Disconnected
@@ -619,32 +640,62 @@ private fun ConnectionStatusPill(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                state.connections.forEach { profile ->
-                    ConnectionMenuRow(
-                        profile = profile,
-                        status = state.connectionStatuses[profile.id] ?: ConnectionRuntimeStatus.Disconnected,
-                        selected = profile.id == state.activeConnectionId,
-                        onSelect = {
-                            expanded = false
-                            onSelectConnection(profile.id)
-                        },
-                        onTest = {
-                            expanded = false
-                            onTestConnection(profile.id)
-                        },
-                        onEdit = {
-                            expanded = false
-                            onEditConnection(profile)
-                        },
-                        onDelete = {
-                            expanded = false
-                            onDeleteConnection(profile.id)
-                        },
-                    )
-                    Spacer(Modifier.height(4.dp))
+                state.connections
+                    .groupBy { it.tags.firstOrNull()?.takeIf(String::isNotBlank) ?: defaultGroup }
+                    .toSortedMap()
+                    .forEach { (group, profiles) ->
+                        Text(
+                            text = group,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        profiles.forEach { profile ->
+                            ConnectionMenuRow(
+                                profile = profile,
+                                status = state.connectionStatuses[profile.id] ?: ConnectionRuntimeStatus.Disconnected,
+                                selected = profile.id == state.activeConnectionId,
+                                onSelect = {
+                                    expanded = false
+                                    onSelectConnection(profile.id)
+                                },
+                                onTest = {
+                                    expanded = false
+                                    onTestConnection(profile.id)
+                                },
+                                onEdit = {
+                                    expanded = false
+                                    onEditConnection(profile)
+                                },
+                                onDelete = {
+                                    expanded = false
+                                    onDeleteConnection(profile.id)
+                                },
+                            )
+                            Spacer(Modifier.height(4.dp))
+                        }
                 }
             }
             DividerLine(vertical = false)
+            if (state.activeConnection != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(4.dp)
+                ) {
+                    OutlinedButton(onClick = {
+                        expanded = false
+                        onReconnectActiveConnection()
+                    }, modifier = Modifier.weight(1f)) {
+                        Text(stringResource(strings.connection_reconnect))
+                    }
+                    OutlinedButton(onClick = {
+                        expanded = false
+                        onDisconnectActiveConnection()
+                    }, modifier = Modifier.weight(1f)) {
+                        Text(stringResource(strings.connection_disconnect))
+                    }
+                }
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

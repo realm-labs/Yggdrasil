@@ -3,16 +3,22 @@ package io.github.realmlabs.yggdrasil.ui.shell
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.CompareArrows
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import io.github.realmlabs.yggdrasil.application.state.*
 import io.github.realmlabs.yggdrasil.application.workflow.completeZkCliCommandLine
 import io.github.realmlabs.yggdrasil.domain.model.*
@@ -36,49 +42,208 @@ fun CommandWorkflowDialog(
     onExecuteZkCli: (ZkCliCommandRequest) -> Unit,
     onSelectPath: (ZNodePath) -> Unit,
     onSelectConnection: (ConnectionId) -> Unit,
+    onRefreshSelectedPath: () -> Unit,
+    onReconnectActiveConnection: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onUpdateSettings: (AppSettings) -> Unit,
 ) {
     val strings = Res.string
-    var section by remember { mutableStateOf(CommandSection.Search) }
+    var section by remember { mutableStateOf(CommandSection.Quick) }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(strings.command_title)) },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.width(1120.dp).heightIn(max = 720.dp),
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            shadowElevation = 12.dp,
+        ) {
             Column(
-                modifier = Modifier.width(720.dp).heightIn(max = 680.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.padding(28.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CommandSection.entries.forEach { item ->
-                        ModeButton(
-                            text = item.label(),
-                            selected = section == item,
-                            onClick = { section = item },
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(strings.command_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(strings.common_close))
+                    }
+                }
+                CommandSectionNav(
+                    selected = section,
+                    onSelect = { section = it },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                DividerLine(vertical = false)
+                Box(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp, max = 560.dp),
+                    contentAlignment = Alignment.TopStart,
+                ) {
+                    when (section) {
+                        CommandSection.Quick -> QuickActionsPane(
+                            state = state,
+                            onSelectPath = onSelectPath,
+                            onSelectConnection = onSelectConnection,
+                            onRefreshSelectedPath = onRefreshSelectedPath,
+                            onReconnectActiveConnection = onReconnectActiveConnection,
+                            onOpenSettings = onOpenSettings,
+                            onUpdateSettings = onUpdateSettings,
+                        )
+
+                        CommandSection.ZkCli -> ZkCliCommandPane(state, onExecuteZkCli)
+                        CommandSection.Search -> SearchCommandPane(state, onSearch, onCancelSearch, onSelectPath)
+                        CommandSection.Export -> ExportCommandPane(state, onExport)
+                        CommandSection.Import -> ImportCommandPane(state, onImport)
+                        CommandSection.Compare -> CompareCommandPane(
+                            state = state,
+                            onCompare = onCompare,
+                            onCancelCompare = onCancelCompare,
+                            onSelectPath = onSelectPath,
+                            onSelectConnection = onSelectConnection,
                         )
                     }
                 }
-                DividerLine(vertical = false)
-                when (section) {
-                    CommandSection.ZkCli -> ZkCliCommandPane(state, onExecuteZkCli)
-                    CommandSection.Search -> SearchCommandPane(state, onSearch, onCancelSearch, onSelectPath)
-                    CommandSection.Export -> ExportCommandPane(state, onExport)
-                    CommandSection.Import -> ImportCommandPane(state, onImport)
-                    CommandSection.Compare -> CompareCommandPane(
-                        state = state,
-                        onCompare = onCompare,
-                        onCancelCompare = onCancelCompare,
-                        onSelectPath = onSelectPath,
-                        onSelectConnection = onSelectConnection,
-                    )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommandSectionNav(
+    selected: CommandSection,
+    onSelect: (CommandSection) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CommandSection.entries.forEach { section ->
+            CommandNavButton(
+                section = section,
+                selected = selected == section,
+                onClick = { onSelect(section) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CommandNavButton(
+    section: CommandSection,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val buttonModifier = modifier.height(42.dp)
+    if (selected) {
+        Button(
+            onClick = onClick,
+            modifier = buttonModifier,
+            shape = ShellMetrics.FieldShape,
+            contentPadding = PaddingValues(horizontal = 10.dp),
+        ) {
+            CommandNavContent(section)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = buttonModifier,
+            shape = ShellMetrics.FieldShape,
+            contentPadding = PaddingValues(horizontal = 10.dp),
+        ) {
+            CommandNavContent(section)
+        }
+    }
+}
+
+@Composable
+private fun CommandNavContent(section: CommandSection) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(section.icon(), contentDescription = null, modifier = Modifier.size(17.dp))
+        Text(section.label(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun QuickActionsPane(
+    state: AppState,
+    onSelectPath: (ZNodePath) -> Unit,
+    onSelectConnection: (ConnectionId) -> Unit,
+    onRefreshSelectedPath: () -> Unit,
+    onReconnectActiveConnection: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onUpdateSettings: (AppSettings) -> Unit,
+) {
+    val strings = Res.string
+    var pathText by remember(state.selectedPath) { mutableStateOf(state.selectedPath?.value ?: "/") }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = pathText,
+                onValueChange = { pathText = it },
+                label = { Text(stringResource(strings.command_jump_path)) },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Button(onClick = {
+                when (val result = ZNodePath.parse(pathText)) {
+                    is OperationResult.Success -> onSelectPath(result.value)
+                    is OperationResult.Failure -> Unit
                 }
+            }) {
+                Text(stringResource(strings.command_jump))
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(strings.common_close))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onRefreshSelectedPath, enabled = state.selectedPath != null) {
+                Text(stringResource(strings.tree_refresh_selected))
             }
-        },
-    )
+            OutlinedButton(onClick = onReconnectActiveConnection, enabled = state.activeConnection != null) {
+                Text(stringResource(strings.connection_reconnect))
+            }
+            OutlinedButton(onClick = onOpenSettings) {
+                Text(stringResource(strings.common_settings))
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(strings.settings_application_theme), style = MaterialTheme.typography.labelMedium)
+            ThemePreference.entries.forEach { theme ->
+                FilterChip(
+                    selected = state.settings.themePreference == theme,
+                    onClick = { onUpdateSettings(state.settings.copy(themePreference = theme)) },
+                    label = { Text(theme.name) },
+                )
+            }
+        }
+        ResultList {
+            state.connections.forEach { connection ->
+                ListResultRow(
+                    title = connection.name,
+                    body = connection.connectionString,
+                    onClick = { onSelectConnection(connection.id) },
+                )
+            }
+            (state.favoritePathsFor() + state.recentPathsFor()).distinct().take(12).forEach { path ->
+                ListResultRow(
+                    title = path.value,
+                    body = stringResource(strings.command_jump_path),
+                    onClick = { onSelectPath(path) },
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -324,8 +489,14 @@ private fun ExportCommandPane(
                 FilterChip(selected = encoding == item, onClick = { encoding = item }, label = { Text(item.name) })
             }
             Spacer(Modifier.weight(1f))
-            Button(enabled = selectedPath != null && !running, onClick = { onExport(includeAcl, encoding) }) {
-                Text(stringResource(strings.command_export_json))
+            Button(
+                enabled = selectedPath != null && !running,
+                onClick = { onExport(includeAcl, encoding) },
+                modifier = Modifier.width(132.dp).height(ShellMetrics.ControlHeight),
+                shape = ShellMetrics.FieldShape,
+                contentPadding = PaddingValues(horizontal = 12.dp),
+            ) {
+                Text(stringResource(strings.command_export_json), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         when (val export = state.exportState) {
@@ -434,7 +605,7 @@ private fun ImportCommandPane(
             textStyle = MaterialTheme.typography.bodySmall,
             modifier = Modifier.fillMaxWidth().height(180.dp),
         )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             FilterChip(
                 selected = dryRun,
                 onClick = { dryRun = !dryRun },
@@ -454,8 +625,15 @@ private fun ImportCommandPane(
                         ),
                     )
                 },
+                modifier = Modifier.width(132.dp).height(ShellMetrics.ControlHeight),
+                shape = ShellMetrics.FieldShape,
+                contentPadding = PaddingValues(horizontal = 12.dp),
             ) {
-                Text(if (dryRun) stringResource(strings.command_plan) else stringResource(strings.command_import))
+                Text(
+                    if (dryRun) stringResource(strings.command_plan) else stringResource(strings.command_import),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         when (val import = state.importState) {
@@ -514,24 +692,31 @@ private fun CompareCommandPane(
     var maxNodes by remember { mutableStateOf("1000") }
     val running = state.compareState is ZNodeCompareState.Running
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ConnectionPicker(
-                label = stringResource(strings.command_left),
-                connections = state.connections,
-                selectedId = leftConnectionId,
-                onSelected = { leftConnectionId = it },
-                modifier = Modifier.weight(1f),
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = stringResource(strings.command_compare),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
             )
-            ConnectionPicker(
-                label = stringResource(strings.command_right),
-                connections = state.connections,
-                selectedId = rightConnectionId,
-                onSelected = { rightConnectionId = it },
-                modifier = Modifier.weight(1f),
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ConnectionPicker(
+                    label = stringResource(strings.command_left),
+                    connections = state.connections,
+                    selectedId = leftConnectionId,
+                    onSelected = { leftConnectionId = it },
+                    modifier = Modifier.weight(1f),
+                )
+                ConnectionPicker(
+                    label = stringResource(strings.command_right),
+                    connections = state.connections,
+                    selectedId = rightConnectionId,
+                    onSelected = { rightConnectionId = it },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(
                 value = leftRoot,
                 onValueChange = { leftRoot = it },
@@ -546,23 +731,32 @@ private fun CompareCommandPane(
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            FilterChip(
+                selected = includeAcl,
+                onClick = { includeAcl = !includeAcl },
+                label = { Text(stringResource(strings.command_compare_acl), maxLines = 1) },
+            )
             OutlinedTextField(
                 value = maxNodes,
                 onValueChange = { maxNodes = it.filter(Char::isDigit) },
                 label = { Text(stringResource(strings.command_max_nodes)) },
                 singleLine = true,
-                modifier = Modifier.width(130.dp),
+                modifier = Modifier.width(140.dp),
             )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FilterChip(
-                selected = includeAcl,
-                onClick = { includeAcl = !includeAcl },
-                label = { Text(stringResource(strings.command_compare_acl)) })
             Spacer(Modifier.weight(1f))
             if (running) {
-                OutlinedButton(onClick = onCancelCompare) {
-                    Text(stringResource(strings.common_cancel))
+                OutlinedButton(
+                    onClick = onCancelCompare,
+                    modifier = Modifier.width(96.dp).height(ShellMetrics.ControlHeight),
+                    shape = ShellMetrics.FieldShape,
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                ) {
+                    Text(stringResource(strings.common_cancel), maxLines = 1)
                 }
             }
             Button(
@@ -583,23 +777,45 @@ private fun CompareCommandPane(
                         )
                     }
                 },
+                modifier = Modifier.width(96.dp).height(ShellMetrics.ControlHeight),
+                shape = ShellMetrics.FieldShape,
+                contentPadding = PaddingValues(horizontal = 12.dp),
             ) {
-                Text(stringResource(strings.command_compare))
+                Text(stringResource(strings.command_compare), maxLines = 1)
             }
         }
-        when (val compare = state.compareState) {
-            ZNodeCompareState.Idle -> EmptyPanelMessage(
-                stringResource(strings.command_no_compare_title),
-                stringResource(strings.command_no_compare_body)
+        DividerLine(vertical = false)
+        Box(Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 340.dp)) {
+            CompareResultContent(
+                state = state,
+                onSelectPath = onSelectPath,
+                onSelectConnection = onSelectConnection,
             )
+        }
+    }
+}
 
-            is ZNodeCompareState.Running -> Text(
-                stringResource(strings.command_scanned_nodes, compare.scannedNodes),
-                style = MaterialTheme.typography.bodySmall
-            )
+@Composable
+private fun CompareResultContent(
+    state: AppState,
+    onSelectPath: (ZNodePath) -> Unit,
+    onSelectConnection: (ConnectionId) -> Unit,
+) {
+    val strings = Res.string
+    when (val compare = state.compareState) {
+        ZNodeCompareState.Idle -> EmptyPanelMessage(
+            stringResource(strings.command_no_compare_title),
+            stringResource(strings.command_no_compare_body)
+        )
 
-            is ZNodeCompareState.Failed -> Text(compare.error.localized(), color = MaterialTheme.colorScheme.error)
-            is ZNodeCompareState.Loaded -> {
+        is ZNodeCompareState.Running -> Text(
+            stringResource(strings.command_scanned_nodes, compare.scannedNodes),
+            style = MaterialTheme.typography.bodySmall
+        )
+
+        is ZNodeCompareState.Failed -> Text(compare.error.localized(), color = MaterialTheme.colorScheme.error)
+        is ZNodeCompareState.Loaded -> {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     stringResource(
                         strings.command_differences_summary,
@@ -649,7 +865,9 @@ private fun ConnectionPicker(
     Box(modifier) {
         OutlinedButton(
             onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(ShellMetrics.ControlHeight),
+            shape = ShellMetrics.FieldShape,
+            contentPadding = PaddingValues(horizontal = 12.dp),
         ) {
             Text("$label: $selectedName", maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -718,6 +936,7 @@ private fun CommandOutput(output: String) {
 }
 
 private enum class CommandSection {
+    Quick,
     ZkCli,
     Search,
     Export,
@@ -730,11 +949,21 @@ private fun CommandSection.label(): String {
     val strings = Res.string
     return when (this) {
         CommandSection.ZkCli -> stringResource(strings.command_zkcli)
+        CommandSection.Quick -> stringResource(strings.command_quick)
         CommandSection.Search -> stringResource(strings.command_search)
         CommandSection.Export -> stringResource(strings.command_export)
         CommandSection.Import -> stringResource(strings.command_import)
         CommandSection.Compare -> stringResource(strings.command_compare)
     }
+}
+
+private fun CommandSection.icon(): ImageVector = when (this) {
+    CommandSection.Quick -> Icons.Outlined.Tune
+    CommandSection.ZkCli -> Icons.Outlined.Terminal
+    CommandSection.Search -> Icons.Outlined.Search
+    CommandSection.Export -> Icons.Outlined.FileDownload
+    CommandSection.Import -> Icons.Outlined.FileUpload
+    CommandSection.Compare -> Icons.AutoMirrored.Outlined.CompareArrows
 }
 
 @Composable

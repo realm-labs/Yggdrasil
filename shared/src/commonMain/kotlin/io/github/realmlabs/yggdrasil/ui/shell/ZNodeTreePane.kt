@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,8 +20,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.realmlabs.yggdrasil.application.state.AppState
-import io.github.realmlabs.yggdrasil.application.state.ZNodeChildrenState
+import io.github.realmlabs.yggdrasil.application.state.*
 import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -31,6 +32,7 @@ fun TreePane(
     state: AppState,
     onSelectPath: (ZNodePath) -> Unit,
     onRefreshSelectedPath: () -> Unit,
+    onToggleFavoritePath: (ZNodePath) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val strings = Res.string
@@ -67,6 +69,18 @@ fun TreePane(
                     enabled = state.selectedPath != null,
                 )
             }
+            val selectedPath = state.selectedPath
+            TreeToolbarIconButton(
+                label = stringResource(strings.tree_toggle_favorite),
+                onClick = { selectedPath?.let(onToggleFavoritePath) },
+                enabled = selectedPath != null,
+            ) {
+                TreeToolbarIcon(
+                    icon = if (selectedPath != null && state.isFavoritePath(selectedPath)) Icons.Outlined.Star else Icons.Outlined.StarBorder,
+                    contentDescription = stringResource(strings.tree_toggle_favorite),
+                    enabled = selectedPath != null,
+                )
+            }
         }
         val activeConnection = state.activeConnection
         if (activeConnection == null) {
@@ -75,6 +89,10 @@ fun TreePane(
                 body = stringResource(strings.tree_no_active_connection_body),
             )
         } else {
+            FavoriteAndRecentPaths(
+                state = state,
+                onSelectPath = onSelectPath,
+            )
             var expandedPaths by remember(state.activeConnectionId) {
                 mutableStateOf(setOf(ZNodePath.Root))
             }
@@ -157,6 +175,53 @@ fun TreePane(
                     onSelectedPositioned = ::centerSelectedPath,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun FavoriteAndRecentPaths(
+    state: AppState,
+    onSelectPath: (ZNodePath) -> Unit,
+) {
+    val strings = Res.string
+    val favorites = state.favoritePathsFor()
+    val recent = state.recentPathsFor().filterNot { it in favorites }.take(4)
+    if (favorites.isEmpty() && recent.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (favorites.isNotEmpty()) {
+            PathShortcutRow(stringResource(strings.tree_favorites), favorites.take(5), onSelectPath)
+        }
+        if (recent.isNotEmpty()) {
+            PathShortcutRow(stringResource(strings.tree_recent_paths), recent, onSelectPath)
+        }
+    }
+}
+
+@Composable
+private fun PathShortcutRow(
+    label: String,
+    paths: List<ZNodePath>,
+    onSelectPath: (ZNodePath) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        paths.forEach { path ->
+            Text(
+                text = path.name.ifBlank { "/" },
+                modifier = Modifier
+                    .clip(ShellMetrics.TreeRowShape)
+                    .clickable { onSelectPath(path) }
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

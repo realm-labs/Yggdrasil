@@ -47,6 +47,16 @@
     <string name="connection_testing">正在测试连接</string>
     <string name="connection_edit">编辑连接</string>
     <string name="connection_delete">删除连接</string>
+    <string name="connection_disconnect">断开</string>
+    <string name="connection_reconnect">重连</string>
+    <string name="connection_group">分组</string>
+    <string name="connection_group_placeholder">生产、测试、本地...</string>
+    <string name="connection_default_group">未分组</string>
+    <string name="connection_status_connected">已连接</string>
+    <string name="connection_status_connecting">连接中</string>
+    <string name="connection_status_disconnected">已断开</string>
+    <string name="connection_status_suspended">已挂起</string>
+    <string name="connection_status_lost">已丢失</string>
     <string name="connection_new_title">新建 ZooKeeper 连接</string>
     <string name="connection_edit_title">编辑 ZooKeeper 连接</string>
     <string name="connection_name">名称</string>
@@ -79,6 +89,9 @@
     <string name="tree_filter_placeholder">过滤 znode...</string>
     <string name="tree_refresh_selected">刷新选中的 znode</string>
     <string name="tree_create_znode">创建 znode</string>
+    <string name="tree_toggle_favorite">收藏/取消收藏路径</string>
+    <string name="tree_favorites">收藏</string>
+    <string name="tree_recent_paths">最近</string>
     <string name="tree_no_active_connection_title">没有活动连接</string>
     <string name="tree_no_active_connection_body">先选择一个已保存的连接，再加载 znode 树。</string>
     <string name="tree_loading_root_children">正在加载根节点子节点</string>
@@ -133,6 +146,8 @@
     <string name="inspector_state_registered">已注册</string>
     <string name="inspector_state_not_registered">未注册</string>
     <string name="inspector_last_event">最近事件</string>
+    <string name="inspector_watch_events">监听事件</string>
+    <string name="inspector_connection">连接</string>
     <string name="inspector_audit">最近操作</string>
     <string name="inspector_recent_operations">操作</string>
     <string name="inspector_latest">最新</string>
@@ -220,6 +235,7 @@
     <string name="dialog_acl_high_risk">高风险 ACL：world:anyone 拥有全部权限。</string>
 
     <string name="command_title">命令</string>
+    <string name="command_quick">快捷</string>
     <string name="command_zkcli">ZK CLI</string>
     <string name="command_search">搜索</string>
     <string name="command_export">导出</string>
@@ -230,6 +246,8 @@
     <string name="command_no_run_title">还没有运行命令</string>
     <string name="command_no_run_body">试试 ls /、get /path、set /path value、getAcl /path 或 help。</string>
     <string name="command_running">正在运行 %1$s</string>
+    <string name="command_jump_path">跳转路径</string>
+    <string name="command_jump">跳转</string>
     <string name="command_max_depth">最大深度</string>
     <string name="command_max_nodes">最大节点数</string>
     <string name="command_no_search_title">还没有搜索</string>
@@ -276,6 +294,8 @@
     <string name="status_deleted_connection">已删除 %1$s</string>
     <string name="status_testing_connection">正在测试 %1$s</string>
     <string name="status_connected_to">已连接到 %1$s</string>
+    <string name="status_disconnected_from">已断开 %1$s</string>
+    <string name="status_reconnecting_to">正在重连 %1$s</string>
     <string name="status_loading_path">正在加载 %1$s</string>
     <string name="status_loaded_path">已加载 %1$s</string>
     <string name="status_loading_children">正在加载 %1$s 的子节点</string>
@@ -307,6 +327,8 @@
     <string name="status_running_zk_command">正在运行 zk 命令</string>
     <string name="status_zk_command_completed">ZK 命令已完成</string>
     <string name="status_watch_event">监听事件 %1$s 发生在 %2$s</string>
+    <string name="status_watch_enabled">已监听 %1$s</string>
+    <string name="status_watch_disabled">已关闭监听</string>
     <string name="status_selection_cleared">已清除选择</string>
     <string name="status_settings_updated">设置已更新</string>
     <string name="status_loading_detail">正在加载 %1$s 的详情</string>

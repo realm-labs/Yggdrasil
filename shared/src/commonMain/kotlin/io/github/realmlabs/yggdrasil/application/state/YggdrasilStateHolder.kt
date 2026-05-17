@@ -117,7 +117,7 @@ class YggdrasilStateHolder(
         )
         appendAudit(AuditAction.Connect, null, "Selected connection ${connection.name}.")
         if (state.settings.startAtRoot) {
-            selectPath(ZNodePath.Root)
+            selectPath(state.recentPathsFor(connectionId).firstOrNull() ?: ZNodePath.Root)
         }
     }
 
@@ -176,9 +176,7 @@ class YggdrasilStateHolder(
         val repository = connectionProfileRepository ?: return
         val existing = state.connections.firstOrNull { it.id == connectionId } ?: return
         val profile = when (val result = draft.toProfile(connectionId)) {
-            is OperationResult.Success -> result.value.copy(
-                tags = existing.tags,
-            )
+            is OperationResult.Success -> result.value
 
             is OperationResult.Failure -> {
                 reportError(result.error)
@@ -350,9 +348,15 @@ class YggdrasilStateHolder(
                 path
             ),
             deletePreview = DeletePreviewState.None,
-            watchState = ZNodeWatchState(watchedPath = path),
+            watchState = state.watchState.copy(
+                watchedPath = path,
+                enabled = state.settings.autoWatchSelectedNode || state.watchState.enabled,
+                error = null,
+            ),
+            settings = state.settings.recordRecentPath(state.activeConnectionId, path),
             statusMessage = StatusMessage.LoadingPath(path),
         )
+        appSettingsRepository?.saveSettings(state.settings)
         path.ancestorPaths().forEach { ancestor ->
             if (state.znodeChildren[ancestor] !is ZNodeChildrenState.Loaded) {
                 loadChildren(
@@ -797,6 +801,42 @@ class YggdrasilStateHolder(
         )
     }
 
+    suspend fun disconnectActiveConnection() {
+        val connectionId = state.activeConnectionId ?: return
+        val connection = state.activeConnection ?: return
+        zNodeRepository?.closeConnection(connectionId)
+        state = state.copy(
+            connectionStatuses = state.connectionStatuses + (connectionId to ConnectionRuntimeStatus.Disconnected),
+            nodeSelection = NodeSelectionState.None,
+            znodeChildren = emptyMap(),
+            nodeDetail = ZNodeDetailState.None,
+            deletePreview = DeletePreviewState.None,
+            watchState = ZNodeWatchState(),
+            searchState = ZNodeSearchState.Idle,
+            exportState = ZNodeExportState.Idle,
+            importState = ZNodeImportState.Idle,
+            compareState = ZNodeCompareState.Idle,
+            zkCliState = ZkCliState.Idle,
+            statusMessage = StatusMessage.DisconnectedFrom(connection.name),
+        )
+    }
+
+    suspend fun reconnectActiveConnection() {
+        val connectionId = state.activeConnectionId ?: return
+        val connection = state.activeConnection ?: return
+        zNodeRepository?.closeConnection(connectionId)
+        state = state.copy(
+            connectionStatuses = state.connectionStatuses + (connectionId to ConnectionRuntimeStatus.Connecting),
+            nodeSelection = NodeSelectionState.None,
+            znodeChildren = emptyMap(),
+            nodeDetail = ZNodeDetailState.None,
+            deletePreview = DeletePreviewState.None,
+            watchState = ZNodeWatchState(),
+            statusMessage = StatusMessage.ReconnectingTo(connection.name),
+        )
+        selectPath(state.recentPathsFor(connectionId).firstOrNull() ?: ZNodePath.Root)
+    }
+
     suspend fun executeZkCliCommand(request: ZkCliCommandRequest) {
         val repository = zNodeRepository ?: return
         val profile = state.activeConnection ?: run {
@@ -838,12 +878,17 @@ class YggdrasilStateHolder(
         val repository = zNodeRepository ?: return null
         val profile = state.activeConnection ?: return null
         val path = state.selectedPath ?: return null
+        if (!state.watchState.enabled) return null
         return repository.watch(profile, path)
     }
 
     suspend fun processWatchEvent(event: ZNodeWatchEvent) {
         state = state.copy(
-            watchState = state.watchState.copy(lastEvent = event, error = null),
+            watchState = state.watchState.copy(
+                lastEvent = event,
+                events = (listOf(event) + state.watchState.events).take(20),
+                error = null,
+            ),
             statusMessage = StatusMessage.WatchEvent(event.type.name, event.path),
         )
         refreshSelectedPath()
@@ -864,6 +909,28 @@ class YggdrasilStateHolder(
             watchState = ZNodeWatchState(),
             statusMessage = StatusMessage.SelectionCleared,
         )
+    }
+
+    fun setWatchEnabled(enabled: Boolean) {
+        val path = state.selectedPath
+        state = state.copy(
+            watchState = if (enabled && path != null) {
+                state.watchState.copy(watchedPath = path, enabled = true, error = null)
+            } else {
+                state.watchState.copy(enabled = false, error = null)
+            },
+            statusMessage = if (enabled && path != null) StatusMessage.WatchEnabled(path) else StatusMessage.WatchDisabled,
+        )
+    }
+
+    fun clearWatchEvents() {
+        state = state.copy(watchState = state.watchState.copy(events = emptyList(), lastEvent = null))
+    }
+
+    suspend fun toggleFavoritePath(path: ZNodePath) {
+        val connectionId = state.activeConnectionId ?: return
+        val settings = state.settings.toggleFavoritePath(connectionId, path)
+        updateSettings(settings)
     }
 
     fun reportError(error: AppError) {
@@ -962,6 +1029,50 @@ class YggdrasilStateHolder(
 
 private fun ZNodePath.ancestorPaths(): List<ZNodePath> =
     generateSequence(parent) { it.parent }.toList().asReversed()
+
+fun AppState.favoritePathsFor(connectionId: ConnectionId? = activeConnectionId): List<ZNodePath> =
+    connectionId
+        ?.let { settings.workspace.favoritePaths[it.value] }
+        .orEmpty()
+        .mapNotNull { raw -> (ZNodePath.parse(raw) as? OperationResult.Success)?.value }
+
+fun AppState.recentPathsFor(connectionId: ConnectionId? = activeConnectionId): List<ZNodePath> =
+    connectionId
+        ?.let { settings.workspace.recentPaths[it.value] }
+        .orEmpty()
+        .mapNotNull { raw -> (ZNodePath.parse(raw) as? OperationResult.Success)?.value }
+
+fun AppState.isFavoritePath(path: ZNodePath): Boolean =
+    path in favoritePathsFor()
+
+private fun AppSettings.recordRecentPath(
+    connectionId: ConnectionId?,
+    path: ZNodePath,
+): AppSettings {
+    val id = connectionId?.value ?: return this
+    val recent = workspace.recentPaths[id].orEmpty()
+    return copy(
+        workspace = workspace.copy(
+            recentPaths = workspace.recentPaths + (id to (listOf(path.value) + recent.filterNot { it == path.value }).take(
+                12
+            )),
+        ),
+    )
+}
+
+private fun AppSettings.toggleFavoritePath(
+    connectionId: ConnectionId,
+    path: ZNodePath,
+): AppSettings {
+    val id = connectionId.value
+    val favorites = workspace.favoritePaths[id].orEmpty()
+    val next = if (path.value in favorites) favorites - path.value else listOf(path.value) + favorites
+    return copy(
+        workspace = workspace.copy(
+            favoritePaths = workspace.favoritePaths + (id to next.take(30)),
+        ),
+    )
+}
 
 private fun String.isWriteZkCliCommand(): Boolean =
     trim().substringBefore(" ") in setOf("create", "set", "delete", "rmr", "deleteall", "setAcl")

@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
+import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
 import io.github.realmlabs.yggdrasil.application.state.ZNodeDetailState
 import io.github.realmlabs.yggdrasil.domain.model.ZNodeAcl
 import io.github.realmlabs.yggdrasil.domain.model.ZNodePermission
@@ -30,6 +31,8 @@ fun InspectorPane(
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     onEditAcl: () -> Unit,
+    onSetWatchEnabled: (Boolean) -> Unit,
+    onClearWatchEvents: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val strings = Res.string
@@ -123,6 +126,40 @@ fun InspectorPane(
                     stringResource(strings.common_path) to (state.watchState.watchedPath?.value ?: "-"),
                     stringResource(strings.inspector_last_event) to (state.watchState.lastEvent?.let { "${it.type} ${it.path}" }
                         ?: "-"),
+                ),
+                trailing = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Switch(
+                            checked = state.watchState.enabled,
+                            onCheckedChange = onSetWatchEnabled,
+                            enabled = state.selectedPath != null,
+                        )
+                        TextButton(onClick = onClearWatchEvents, enabled = state.watchState.events.isNotEmpty()) {
+                            Text(stringResource(strings.common_clear))
+                        }
+                    }
+                },
+            )
+            if (state.watchState.events.isNotEmpty()) {
+                InspectorSection(
+                    title = stringResource(strings.inspector_watch_events),
+                    rows = state.watchState.events.take(5).map { event ->
+                        event.type.name to event.path.value
+                    },
+                )
+            }
+            InspectorSection(
+                title = stringResource(strings.inspector_connection),
+                rows = listOf(
+                    stringResource(strings.inspector_state) to state.connectionStatusLabel(),
+                    "SSH" to if (state.activeConnection?.sshTunnel != null) {
+                        stringResource(strings.connection_ssh_tunnel)
+                    } else {
+                        "-"
+                    },
                 ),
             )
             InspectorSection(
@@ -258,6 +295,19 @@ private fun Set<ZNodePermission>.toPermissionLabel(): String =
 
 private fun Long.toZxidLabel(): String =
     if (this == 0L) "0" else "0x${toString(16)}"
+
+@Composable
+private fun AppState.connectionStatusLabel(): String {
+    val strings = Res.string
+    return when (activeConnectionId?.let { connectionStatuses[it] } ?: ConnectionRuntimeStatus.Disconnected) {
+        ConnectionRuntimeStatus.Connected -> stringResource(strings.connection_status_connected)
+        ConnectionRuntimeStatus.Connecting -> stringResource(strings.connection_status_connecting)
+        ConnectionRuntimeStatus.Disconnected -> stringResource(strings.connection_status_disconnected)
+        ConnectionRuntimeStatus.Lost -> stringResource(strings.connection_status_lost)
+        ConnectionRuntimeStatus.Suspended -> stringResource(strings.connection_status_suspended)
+        is ConnectionRuntimeStatus.Failed -> stringResource(strings.inspector_state_failed)
+    }
+}
 
 @Composable
 private fun AppState.modeLabel(): String {

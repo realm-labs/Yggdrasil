@@ -44,10 +44,12 @@ sealed interface DeletePreviewState {
 data class ZNodeWatchState(
     val watchedPath: ZNodePath? = null,
     val lastEvent: ZNodeWatchEvent? = null,
+    val events: List<ZNodeWatchEvent> = emptyList(),
     val error: AppError? = null,
+    val enabled: Boolean = false,
 ) {
     val isRegistered: Boolean
-        get() = watchedPath != null && error == null
+        get() = enabled && watchedPath != null && error == null
 }
 
 sealed interface StatusMessage {
@@ -61,6 +63,8 @@ sealed interface StatusMessage {
     data class DeletedConnection(val name: String) : StatusMessage
     data class TestingConnection(val name: String) : StatusMessage
     data class ConnectedTo(val name: String) : StatusMessage
+    data class DisconnectedFrom(val name: String) : StatusMessage
+    data class ReconnectingTo(val name: String) : StatusMessage
     data class LoadingPath(val path: ZNodePath) : StatusMessage
     data class LoadedPath(val path: ZNodePath) : StatusMessage
     data class LoadingChildren(val path: ZNodePath) : StatusMessage
@@ -92,6 +96,8 @@ sealed interface StatusMessage {
     data object RunningZkCommand : StatusMessage
     data object ZkCommandCompleted : StatusMessage
     data class WatchEvent(val type: String, val path: ZNodePath) : StatusMessage
+    data class WatchEnabled(val path: ZNodePath) : StatusMessage
+    data object WatchDisabled : StatusMessage
     data object SelectionCleared : StatusMessage
     data object SettingsUpdated : StatusMessage
     data class LoadingDetail(val path: ZNodePath) : StatusMessage
@@ -165,4 +171,11 @@ data class AppSettings(
     val terminalThemePreference: TerminalThemePreference = TerminalThemePreference.Auto,
     val terminalShowTimestamps: Boolean = true,
     val clearTerminalOnConnectionChange: Boolean = false,
+    val workspace: AppWorkspaceState = AppWorkspaceState(),
+)
+
+@Serializable
+data class AppWorkspaceState(
+    val favoritePaths: Map<String, List<String>> = emptyMap(),
+    val recentPaths: Map<String, List<String>> = emptyMap(),
 )

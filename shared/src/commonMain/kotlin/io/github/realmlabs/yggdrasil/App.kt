@@ -40,9 +40,10 @@ fun App() {
         stateHolder,
         stateHolder.state.activeConnectionId,
         stateHolder.state.watchState.watchedPath,
+        stateHolder.state.watchState.enabled,
         stateHolder.state.settings.autoWatchSelectedNode,
     ) {
-        if (!stateHolder.state.settings.autoWatchSelectedNode) return@LaunchedEffect
+        if (!stateHolder.state.watchState.enabled) return@LaunchedEffect
         stateHolder.watchSelectedPath()
             ?.catch { error ->
                 stateHolder.reportWatchError(
@@ -73,6 +74,8 @@ fun App() {
                 },
                 onDeleteConnection = { id -> coroutineScope.launch { stateHolder.deleteConnection(id) } },
                 onTestConnection = { id -> coroutineScope.launch { stateHolder.testConnection(id) } },
+                onDisconnectActiveConnection = { coroutineScope.launch { stateHolder.disconnectActiveConnection() } },
+                onReconnectActiveConnection = { coroutineScope.launch { stateHolder.reconnectActiveConnection() } },
                 onSelectPath = { path -> coroutineScope.launch { stateHolder.selectPath(path) } },
                 onRefreshSelectedPath = { coroutineScope.launch { stateHolder.refreshSelectedPath() } },
                 onCreateNode = { request -> coroutineScope.launch { stateHolder.createNode(request) } },
@@ -117,6 +120,9 @@ fun App() {
                     coroutineScope.launch { stateHolder.executeZkCliCommand(request) }
                 },
                 onClearSelection = stateHolder::clearSelection,
+                onSetWatchEnabled = stateHolder::setWatchEnabled,
+                onClearWatchEvents = stateHolder::clearWatchEvents,
+                onToggleFavoritePath = { path -> coroutineScope.launch { stateHolder.toggleFavoritePath(path) } },
                 onUpdateSettings = { settings ->
                     coroutineScope.launch { stateHolder.updateSettings(settings) }
                 },

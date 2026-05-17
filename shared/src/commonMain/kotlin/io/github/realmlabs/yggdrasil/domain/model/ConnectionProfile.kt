@@ -26,6 +26,7 @@ data class ConnectionProfileDraft(
     val name: String = "",
     val connectionString: String = "",
     val chroot: String = "",
+    val group: String = "",
     val mode: ConnectionMode = ConnectionMode.ReadOnly,
     val zkDigestAuthEnabled: Boolean = false,
     val zkDigestUsername: String = "",
@@ -81,6 +82,7 @@ data class ConnectionProfileDraft(
                     security = security,
                     sshTunnel = sshTunnel,
                     mode = mode,
+                    tags = setOf(group.trim()).filter(String::isNotBlank).toSet(),
                 ),
             )
         } catch (exception: IllegalArgumentException) {
