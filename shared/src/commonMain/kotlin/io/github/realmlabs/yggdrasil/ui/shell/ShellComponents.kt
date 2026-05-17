@@ -25,6 +25,7 @@ import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
 object ShellMetrics {
     val ControlHeight = 40.dp
     val CompactControlHeight = 34.dp
+    val TitleBarTopInset = 28.dp
     val FieldShape = RoundedCornerShape(8.dp)
     val CardShape = RoundedCornerShape(8.dp)
     val TreeRowShape = RoundedCornerShape(5.dp)

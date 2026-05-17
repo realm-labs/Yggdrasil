@@ -9,9 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -230,17 +228,15 @@ private fun SettingsHeader(
     onClose: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
-        Box(Modifier.fillMaxWidth().height(34.dp), contentAlignment = Alignment.Center) {
-            Text("Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-        }
-        DividerLine(vertical = false)
+        Spacer(Modifier.height(ShellMetrics.TitleBarTopInset))
         Row(
-            modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SettingsBrandMark()
-            Text("Yggdrasil", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
             ShellTextInput(
                 value = search,
@@ -264,7 +260,6 @@ private fun SettingsHeader(
                 Text("Close")
             }
         }
-        DividerLine(vertical = false)
     }
 }
 
@@ -529,21 +524,6 @@ private fun SettingsFooter(onRestoreDefaults: () -> Unit, onClose: () -> Unit) {
         ) {
             Text("Done")
         }
-    }
-}
-
-@Composable
-private fun SettingsBrandMark() {
-    val color = MaterialTheme.colorScheme.primary
-    Canvas(Modifier.size(28.dp)) {
-        val stroke = 2.1.dp.toPx()
-        drawLine(color, Offset(size.width * 0.5f, size.height * 0.12f), Offset(size.width * 0.5f, size.height * 0.88f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(size.width * 0.2f, size.height * 0.26f), Offset(size.width * 0.8f, size.height * 0.26f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(size.width * 0.2f, size.height * 0.50f), Offset(size.width * 0.8f, size.height * 0.50f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(size.width * 0.2f, size.height * 0.74f), Offset(size.width * 0.8f, size.height * 0.74f), stroke, cap = StrokeCap.Round)
-        drawCircle(color, radius = 2.7.dp.toPx(), center = Offset(size.width * 0.2f, size.height * 0.26f))
-        drawCircle(color, radius = 2.7.dp.toPx(), center = Offset(size.width * 0.8f, size.height * 0.50f))
-        drawCircle(color, radius = 2.7.dp.toPx(), center = Offset(size.width * 0.2f, size.height * 0.74f))
     }
 }
 

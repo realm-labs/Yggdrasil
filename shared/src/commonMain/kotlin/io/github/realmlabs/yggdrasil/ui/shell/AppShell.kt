@@ -10,9 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -276,106 +274,90 @@ private fun YggdrasilTopBar(
     onSettings: () -> Unit,
     onCommand: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Column(
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface),
     ) {
-        BrandMark()
-        Text(
-            text = "Yggdrasil",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-        )
-        ConnectionStatusPill(
-            state = state,
-            onSelectConnection = onSelectConnection,
-            onNewConnection = onNewConnection,
-            onEditConnection = onEditConnection,
-            onDeleteConnection = onDeleteConnection,
-            onTestConnection = onTestConnection,
-        )
-        ModeStatusPill(state)
-        BreadcrumbPath(
-            path = state.selectedPath,
-            modifier = Modifier.weight(1f),
-        )
-        ShellTextInput(
-            value = search,
-            onValueChange = onSearchChange,
-            placeholder = "Search nodes & data",
-            modifier = Modifier.width(340.dp),
-            leading = {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-            },
-            trailing = {
-                Text(
-                    text = "⌘K",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-        )
-        Button(
-            onClick = onCommand,
-            modifier = Modifier.width(132.dp).height(ShellMetrics.ControlHeight),
-            shape = ShellMetrics.FieldShape,
-            contentPadding = PaddingValues(horizontal = 16.dp),
-        ) {
-            Text("⌘ Command")
-        }
-        IconGlyphButton(label = "Search", onClick = onRunSearch) {
-            Icon(
-                imageVector = Icons.Outlined.Refresh,
-                contentDescription = "Search",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp),
-            )
-        }
-        IconGlyphButton(label = "Settings", onClick = onSettings) {
-            Icon(
-                imageVector = Icons.Outlined.Settings,
-                contentDescription = "Settings",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp),
-            )
-        }
-        Box(
+        Spacer(Modifier.height(ShellMetrics.TitleBarTopInset))
+        Row(
             modifier = Modifier
-                .size(38.dp)
-                .clip(CircleShape)
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), CircleShape),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("●", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+            ConnectionStatusPill(
+                state = state,
+                onSelectConnection = onSelectConnection,
+                onNewConnection = onNewConnection,
+                onEditConnection = onEditConnection,
+                onDeleteConnection = onDeleteConnection,
+                onTestConnection = onTestConnection,
+            )
+            ModeStatusPill(state)
+            BreadcrumbPath(
+                path = state.selectedPath,
+                modifier = Modifier.weight(1f),
+            )
+            ShellTextInput(
+                value = search,
+                onValueChange = onSearchChange,
+                placeholder = "Search nodes & data",
+                modifier = Modifier.width(340.dp),
+                leading = {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                },
+                trailing = {
+                    Text(
+                        text = "⌘K",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            Button(
+                onClick = onCommand,
+                modifier = Modifier.width(132.dp).height(ShellMetrics.ControlHeight),
+                shape = ShellMetrics.FieldShape,
+                contentPadding = PaddingValues(horizontal = 16.dp),
+            ) {
+                Text("⌘ Command")
+            }
+            IconGlyphButton(label = "Search", onClick = onRunSearch) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = "Search",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            IconGlyphButton(label = "Settings", onClick = onSettings) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "●",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
-    }
-}
-
-@Composable
-private fun BrandMark() {
-    val color = MaterialTheme.colorScheme.primary
-    Canvas(Modifier.size(28.dp)) {
-        val stroke = 2.2.dp.toPx()
-        val w = size.width
-        val h = size.height
-        drawLine(color, Offset(w * 0.5f, h * 0.12f), Offset(w * 0.5f, h * 0.88f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(w * 0.2f, h * 0.26f), Offset(w * 0.8f, h * 0.26f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(w * 0.2f, h * 0.50f), Offset(w * 0.8f, h * 0.50f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(w * 0.2f, h * 0.74f), Offset(w * 0.8f, h * 0.74f), stroke, cap = StrokeCap.Round)
-        drawCircle(color, radius = 2.8.dp.toPx(), center = Offset(w * 0.2f, h * 0.26f))
-        drawCircle(color, radius = 2.8.dp.toPx(), center = Offset(w * 0.8f, h * 0.50f))
-        drawCircle(color, radius = 2.8.dp.toPx(), center = Offset(w * 0.2f, h * 0.74f))
     }
 }
 
