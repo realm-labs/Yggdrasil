@@ -254,4 +254,15 @@ jobs:
               --title "Yggdrasil ${VERSION_NAME}" \
               --notes "Unsigned desktop packages for Yggdrasil ${VERSION_NAME}."
           fi
-          gh release upload "${TAG_NAME}" release-assets/* --clobber
+
+          mapfile -t RELEASE_ASSETS < <(
+            find release-assets -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.deb' \) | sort
+          )
+          if [[ "${#RELEASE_ASSETS[@]}" -eq 0 ]]; then
+            echo "No release assets found under release-assets." >&2
+            find release-assets -maxdepth 4 -print >&2
+            exit 1
+          fi
+
+          printf 'Uploading release asset: %s\n' "${RELEASE_ASSETS[@]}"
+          gh release upload "${TAG_NAME}" "${RELEASE_ASSETS[@]}" --clobber
