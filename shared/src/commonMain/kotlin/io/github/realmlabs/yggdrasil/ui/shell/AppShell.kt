@@ -12,12 +12,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.realmlabs.yggdrasil.application.state.*
+import io.github.realmlabs.yggdrasil.application.workflow.completeZkCliCommandLine
 import io.github.realmlabs.yggdrasil.domain.model.*
 import org.jetbrains.compose.resources.stringResource
 import yggdrasil.shared.generated.resources.*
@@ -55,7 +59,7 @@ fun AppShell(
     var showCommandDialog by remember { mutableStateOf(false) }
     var editingConnection by remember { mutableStateOf<ConnectionProfile?>(null) }
     var topSearch by remember { mutableStateOf("") }
-    var terminalCommand by remember { mutableStateOf("") }
+    var terminalCommand by remember { mutableStateOf(TextFieldValue("")) }
     var terminalEntries by remember { mutableStateOf<List<TerminalEntry>>(emptyList()) }
     var lastTerminalStateKey by remember { mutableStateOf("") }
     var inspectorExpanded by remember { mutableStateOf(state.settings.inspectorExpandedByDefault) }
@@ -65,6 +69,9 @@ fun AppShell(
         else -> null
     }
     val terminalErrorOutput = (state.zkCliState as? ZkCliState.Failed)?.error?.localized()
+    val zkCliCompletionPaths = remember(state.znodeChildren, state.selectedPath) {
+        state.knownZkCliPaths()
+    }
 
     LaunchedEffect(state.settings.inspectorExpandedByDefault) {
         inspectorExpanded = state.settings.inspectorExpandedByDefault
@@ -173,10 +180,21 @@ fun AppShell(
                         entries = terminalEntries,
                         command = terminalCommand,
                         onCommandChange = { terminalCommand = it },
+                        onCompleteCommand = {
+                            val completion = completeZkCliCommandLine(
+                                commandLine = terminalCommand.text,
+                                cursor = terminalCommand.selection.start,
+                                knownPaths = zkCliCompletionPaths,
+                            )
+                            terminalCommand = TextFieldValue(
+                                text = completion.commandLine,
+                                selection = TextRange(completion.cursor),
+                            )
+                        },
                         onExecute = {
-                            if (terminalCommand.isNotBlank()) {
-                                onExecuteZkCli(ZkCliCommandRequest(terminalCommand))
-                                terminalCommand = ""
+                            if (terminalCommand.text.isNotBlank()) {
+                                onExecuteZkCli(ZkCliCommandRequest(terminalCommand.text))
+                                terminalCommand = TextFieldValue("")
                             }
                         },
                         onClear = { terminalEntries = emptyList() },
@@ -684,8 +702,9 @@ private fun ZkCliTerminal(
     state: AppState,
     settings: AppSettings,
     entries: List<TerminalEntry>,
-    command: String,
-    onCommandChange: (String) -> Unit,
+    command: TextFieldValue,
+    onCommandChange: (TextFieldValue) -> Unit,
+    onCompleteCommand: () -> Unit,
     onExecute: () -> Unit,
     onClear: () -> Unit,
 ) {
@@ -708,6 +727,7 @@ private fun ZkCliTerminal(
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val terminalTextStyle = MaterialTheme.typography.bodySmall.copy(fontSize = settings.terminalFontSize.sp)
+    val canExecute = command.text.isNotBlank() && state.activeConnection != null
 
     Column(
         modifier = Modifier
@@ -819,7 +839,28 @@ private fun ZkCliTerminal(
                 value = command,
                 onValueChange = onCommandChange,
                 placeholder = stringResource(strings.terminal_placeholder),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) {
+                            return@onPreviewKeyEvent false
+                        }
+                        when (event.key) {
+                            Key.Tab -> {
+                                onCompleteCommand()
+                                true
+                            }
+
+                            Key.Enter -> {
+                                if (canExecute) {
+                                    onExecute()
+                                }
+                                canExecute
+                            }
+
+                            else -> false
+                        }
+                    },
                 monospace = true,
             )
             Box(
@@ -834,7 +875,7 @@ private fun ZkCliTerminal(
             }
             Button(
                 onClick = onExecute,
-                enabled = command.isNotBlank() && state.activeConnection != null,
+                enabled = canExecute,
                 modifier = Modifier.height(ShellMetrics.ControlHeight),
                 shape = ShellMetrics.FieldShape,
             ) {

@@ -7,10 +7,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.*
+import io.github.realmlabs.yggdrasil.application.workflow.completeZkCliCommandLine
 import io.github.realmlabs.yggdrasil.domain.model.*
 import org.jetbrains.compose.resources.stringResource
 import yggdrasil.shared.generated.resources.*
@@ -79,8 +83,17 @@ private fun ZkCliCommandPane(
     onExecuteZkCli: (ZkCliCommandRequest) -> Unit,
 ) {
     val strings = Res.string
-    var command by remember { mutableStateOf("ls /") }
+    var command by remember { mutableStateOf(TextFieldValue("ls /", selection = TextRange("ls /".length))) }
     val running = state.zkCliState is ZkCliState.Running
+    val completionPaths = remember(state.znodeChildren, state.selectedPath) {
+        state.knownZkCliPaths()
+    }
+    val canExecute = command.text.isNotBlank() && state.activeConnection != null && !running
+    val executeCommand = {
+        if (canExecute) {
+            onExecuteZkCli(ZkCliCommandRequest(command.text))
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -89,11 +102,38 @@ private fun ZkCliCommandPane(
                 onValueChange = { command = it },
                 label = { Text(stringResource(strings.command_zkcli)) },
                 singleLine = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) {
+                            return@onPreviewKeyEvent false
+                        }
+                        when (event.key) {
+                            Key.Tab -> {
+                                val completion = completeZkCliCommandLine(
+                                    commandLine = command.text,
+                                    cursor = command.selection.start,
+                                    knownPaths = completionPaths,
+                                )
+                                command = TextFieldValue(
+                                    text = completion.commandLine,
+                                    selection = TextRange(completion.cursor),
+                                )
+                                true
+                            }
+
+                            Key.Enter -> {
+                                executeCommand()
+                                canExecute
+                            }
+
+                            else -> false
+                        }
+                    },
             )
             Button(
-                enabled = command.isNotBlank() && state.activeConnection != null && !running,
-                onClick = { onExecuteZkCli(ZkCliCommandRequest(command)) },
+                enabled = canExecute,
+                onClick = executeCommand,
             ) {
                 Text(stringResource(strings.common_run))
             }
