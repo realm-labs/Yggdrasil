@@ -2,7 +2,9 @@
 
 Yggdrasil is a modern desktop GUI client for Apache ZooKeeper, built with Kotlin Multiplatform and Compose Desktop.
 
-The project is currently in early development. The first milestone focuses on a safe, practical desktop workflow for browsing ZooKeeper clusters, inspecting znodes, and preparing the foundation for guarded write operations.
+The project is still under active development, but the core ZooKeeper client workflow is now usable: connect to a
+cluster, browse the znode tree, inspect and edit data, manage ACLs, run zkCli-style commands, and move data between
+environments.
 
 ## Goals
 
@@ -10,34 +12,44 @@ The project is currently in early development. The first milestone focuses on a 
 - Browse znode trees with a desktop-first interface.
 - Inspect znode data, stat metadata, ACLs, and watch state.
 - Support safe create, update, delete, import, export, and comparison workflows.
-- Prefer explicit previews and confirmations for destructive or production-sensitive operations.
+- Prefer clear previews for destructive or production-sensitive operations.
+- Provide practical SSH tunnel support for clusters that are only reachable through jump hosts.
 
 ## Project Structure
 
 - [`desktopApp`](./desktopApp/src/main/kotlin) contains the JVM desktop entry point and native desktop packaging configuration.
 - [`shared`](./shared/src/commonMain/kotlin) contains shared Compose UI, application state, and domain models.
-- [`shared/src/jvmMain`](./shared/src/jvmMain/kotlin) is reserved for JVM-specific integrations such as ZooKeeper clients, local storage, and desktop security services.
+- [`shared/src/jvmMain`](./shared/src/jvmMain/kotlin) contains JVM-specific integrations such as ZooKeeper clients,
+  local storage, SSH tunneling, file picking, and desktop security services.
 - [`shared/src/commonTest`](./shared/src/commonTest/kotlin) contains shared domain and state tests.
+
+## Feature Highlights
+
+- Saved ZooKeeper connection profiles with read-only/read-write modes.
+- ZooKeeper digest authentication.
+- SSH tunnel connections with password or identity-file authentication.
+- Secret storage for credentials where the desktop platform supports it.
+- Znode tree browsing with filtering, refresh, and selectable/copyable paths.
+- Znode create, copy, edit, and delete actions.
+- Automatic delete preview before execution.
+- Data editor modes for text, JSON, hex, and Base64, with validation for structured formats.
+- Inspector panel for stat metadata and ACL details.
+- ACL editing for common ZooKeeper permission schemes.
+- Top-bar search for znode paths and data, with inline results and direct tree navigation.
+- Embedded zkCli-style terminal with command validation, supported command parameters, and tab completion.
+- Import, export, and compare workflows for znode subtrees.
+- Resizable tree, editor, inspector, and terminal panes.
+- English and Chinese UI.
+- Light, dark, and system theme preferences.
 
 ## Current Status
 
-Implemented:
+Most of the P0 desktop client workflow is implemented. The remaining work is mostly product hardening:
 
-- Compose Desktop application shell.
-- Connection, znode, operation, and error domain models.
-- Basic application state holder.
-- Local connection profile storage.
-- ZooKeeper connection test integration through Apache Curator.
-- Connection creation, deletion, loading, and test actions in the desktop shell.
-- Path validation tests and state transition tests.
-- Connection draft and local storage tests.
-
-Not implemented yet:
-
-- znode tree loading.
-- znode data editing.
-- ACL editing.
-- Import, export, search, and comparison tools.
+- broaden zkCli compatibility where the GUI can safely map commands to the underlying client API;
+- improve edge-case behavior around very large trees and large znode payloads;
+- continue polishing platform-specific packaging, signing, and distribution;
+- add more integration coverage against real ZooKeeper versions and SSH environments.
 
 ## Development
 
@@ -79,6 +91,7 @@ Build a native package for the current operating system:
 - Kotlin Coroutines
 - Kotlinx Serialization
 - Apache Curator
+- System SSH client integration for tunnels
 - JVM desktop packaging through the Compose Gradle plugin
 
 ZooKeeper client integration lives in the JVM source set so the UI and domain layers remain decoupled from the concrete client implementation.
