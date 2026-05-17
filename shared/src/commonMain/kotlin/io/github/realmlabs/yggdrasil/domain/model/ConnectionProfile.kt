@@ -90,11 +90,7 @@ data class ConnectionProfileDraft(
         val trimmedSecret = sshSecret.trim()
         val parsedPort = sshPort.trim().toIntOrNull()
         val credentialRef = sshCredentialRef?.takeIf { it.isNotBlank() }
-            ?: if (trimmedSecret.isNotBlank()) {
-                "ssh:${trimmedUsername}@${trimmedHost}:${parsedPort ?: sshPort.trim()}:${sshAuthenticationMethod.name.lowercase()}"
-            } else {
-                null
-            }
+            ?: "ssh:${trimmedUsername}@${trimmedHost}:${parsedPort ?: sshPort.trim()}:${sshAuthenticationMethod.name.lowercase()}"
 
         return when {
             trimmedHost.isBlank() -> OperationResult.Failure(AppError.Validation("SSH host is required."))
@@ -102,7 +98,10 @@ data class ConnectionProfileDraft(
             parsedPort == null || parsedPort !in 1..65535 -> {
                 OperationResult.Failure(AppError.Validation("SSH port must be between 1 and 65535."))
             }
-            sshAuthenticationMethod == SshAuthenticationMethod.Password && credentialRef == null -> {
+            sshAuthenticationMethod == SshAuthenticationMethod.PublicKey && trimmedIdentityFile.isBlank() -> {
+                OperationResult.Failure(AppError.Validation("SSH identity file is required."))
+            }
+            sshAuthenticationMethod == SshAuthenticationMethod.Password && sshCredentialRef == null && trimmedSecret.isBlank() -> {
                 OperationResult.Failure(AppError.Validation("SSH password is required."))
             }
 

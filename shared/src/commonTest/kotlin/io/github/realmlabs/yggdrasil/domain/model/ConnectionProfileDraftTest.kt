@@ -58,6 +58,8 @@ class ConnectionProfileDraftTest {
         assertEquals("deploy", profile.sshTunnel?.username)
         assertEquals(2222, profile.sshTunnel?.port)
         assertEquals("~/.ssh/id_ed25519", profile.sshTunnel?.identityFile)
+        assertEquals(SshAuthenticationMethod.PublicKey, profile.sshTunnel?.authenticationMethod)
+        assertEquals("ssh:deploy@bastion.example.com:2222:publickey", profile.sshTunnel?.credentialRef)
     }
 
     @Test
@@ -84,6 +86,19 @@ class ConnectionProfileDraftTest {
             connectionString = "zk.internal:2181",
             sshTunnelEnabled = true,
             sshHost = "bastion.example.com",
+        ).toProfile(ConnectionId("remote"))
+
+        assertIs<OperationResult.Failure>(result)
+    }
+
+    @Test
+    fun rejectsPublicKeySshTunnelWithoutIdentityFile() {
+        val result = ConnectionProfileDraft(
+            name = "Remote",
+            connectionString = "zk.internal:2181",
+            sshTunnelEnabled = true,
+            sshHost = "bastion.example.com",
+            sshUsername = "deploy",
         ).toProfile(ConnectionId("remote"))
 
         assertIs<OperationResult.Failure>(result)

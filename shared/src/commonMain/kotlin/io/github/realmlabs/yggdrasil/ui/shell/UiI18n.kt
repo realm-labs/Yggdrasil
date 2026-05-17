@@ -70,6 +70,7 @@ internal fun AppError.localized(): String {
         message == "SSH username is required." -> stringResource(strings.error_ssh_username_required)
         message == "SSH port must be between 1 and 65535." -> stringResource(strings.error_ssh_port_invalid)
         message == "SSH password is required." -> stringResource(strings.error_ssh_password_required)
+        message == "SSH identity file is required." -> stringResource(strings.error_ssh_identity_file_required)
         message == "SSH credential storage is not available." -> {
             stringResource(strings.error_ssh_credential_storage_unavailable)
         }

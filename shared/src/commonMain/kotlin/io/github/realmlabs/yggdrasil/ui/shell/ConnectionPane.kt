@@ -312,6 +312,7 @@ fun ConnectionDialog(
     val sshUsernameRequired = stringResource(strings.error_ssh_username_required)
     val sshPortInvalid = stringResource(strings.error_ssh_port_invalid)
     val sshPasswordRequired = stringResource(strings.error_ssh_password_required)
+    val sshIdentityFileRequired = stringResource(strings.error_ssh_identity_file_required)
     fun validationErrorMessage(error: AppError): String =
         when (error.message) {
             "Connection name is required." -> connectionNameRequired
@@ -321,6 +322,7 @@ fun ConnectionDialog(
             "SSH username is required." -> sshUsernameRequired
             "SSH port must be between 1 and 65535." -> sshPortInvalid
             "SSH password is required." -> sshPasswordRequired
+            "SSH identity file is required." -> sshIdentityFileRequired
             else -> error.message
         }
 

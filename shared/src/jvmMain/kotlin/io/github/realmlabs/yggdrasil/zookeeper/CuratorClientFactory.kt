@@ -101,7 +101,7 @@ private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
     val endpoint = parseSingleZooKeeperEndpoint(profile.connectionString)
     val localPort = findAvailableLocalPort()
     val forwarding = "127.0.0.1:$localPort:${endpoint.host}:${endpoint.port}"
-    val askPassScript = tunnel.credentialRef?.let(::createAskPassScript)
+    val askPassScript = createAskPassScript(requireNotNull(tunnel.credentialRef))
     val command = buildList {
         add("ssh")
         add("-N")
@@ -112,18 +112,28 @@ private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
         add("-o")
         add("ExitOnForwardFailure=yes")
         add("-o")
-        add("BatchMode=${if (askPassScript == null) "yes" else "no"}")
+        add("BatchMode=no")
         add("-o")
-        add("NumberOfPasswordPrompts=${if (askPassScript == null) "0" else "1"}")
+        add("NumberOfPasswordPrompts=1")
         add("-o")
         add("StrictHostKeyChecking=accept-new")
         add("-o")
         add("ConnectTimeout=10")
-        if (tunnel.authenticationMethod == SshAuthenticationMethod.Password) {
-            add("-o")
-            add("PreferredAuthentications=password,keyboard-interactive")
+        add("-o")
+        add("IdentitiesOnly=yes")
+        add("-o")
+        add("IdentityAgent=none")
+        when (tunnel.authenticationMethod) {
+            SshAuthenticationMethod.Password -> {
+                add("-o")
+                add("PreferredAuthentications=password,keyboard-interactive")
+            }
+            SshAuthenticationMethod.PublicKey -> {
+                add("-o")
+                add("PreferredAuthentications=publickey")
+            }
         }
-        tunnel.identityFile?.takeIf { it.isNotBlank() }?.let { identityFile ->
+        tunnel.identityFile?.let { identityFile ->
             add("-i")
             add(identityFile)
         }
@@ -132,17 +142,15 @@ private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
 
     val processBuilder = ProcessBuilder(command)
         .redirectErrorStream(true)
-    askPassScript?.let { script ->
-        processBuilder.environment()["SSH_ASKPASS"] = script.toAbsolutePath().toString()
-        processBuilder.environment()["SSH_ASKPASS_REQUIRE"] = "force"
-        processBuilder.environment()["DISPLAY"] = processBuilder.environment()["DISPLAY"] ?: "localhost:0"
-    }
+    processBuilder.environment()["SSH_ASKPASS"] = askPassScript.toAbsolutePath().toString()
+    processBuilder.environment()["SSH_ASKPASS_REQUIRE"] = "force"
+    processBuilder.environment()["DISPLAY"] = processBuilder.environment()["DISPLAY"] ?: "localhost:0"
     val process = processBuilder.start()
     process.outputStream.close()
     val exitedEarly = process.waitFor(700, TimeUnit.MILLISECONDS)
     if (exitedEarly) {
         val output = process.inputStream.bufferedReader().readText()
-        askPassScript?.let(Files::deleteIfExists)
+        Files.deleteIfExists(askPassScript)
         throw IllegalStateException(
             "SSH tunnel failed to start.${
                 output.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
@@ -200,13 +208,13 @@ private fun findAvailableLocalPort(): Int =
 private class SshTunnelProcess(
     private val process: Process,
     val connectionString: String,
-    private val askPassScript: Path? = null,
+    private val askPassScript: Path,
 ) : AutoCloseable {
     override fun close() {
         process.destroy()
         if (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
             process.destroyForcibly()
         }
-        askPassScript?.let(Files::deleteIfExists)
+        Files.deleteIfExists(askPassScript)
     }
 }
