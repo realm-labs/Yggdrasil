@@ -916,22 +916,13 @@ private fun ZkCliTerminal(
             Row(
                 modifier = Modifier
                     .height(ShellMetrics.ControlHeight)
-                    .clip(ShellMetrics.TreeRowShape)
-                    .clickable { expanded = !expanded }
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
                     stringResource(strings.terminal_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium
-                )
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
                 )
             }
             Spacer(Modifier.weight(1f))
