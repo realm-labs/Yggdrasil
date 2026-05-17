@@ -2,10 +2,11 @@ package io.github.realmlabs.yggdrasil.ui.shell
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.toString
 import androidx.compose.ui.Alignment
@@ -40,7 +41,11 @@ fun InspectorPane(
                 onClick = onToggleExpanded,
                 modifier = Modifier.size(ShellMetrics.ControlHeight),
             ) {
-                Text("‹", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
+                    contentDescription = "Expand inspector",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             return@Column
         }
@@ -63,9 +68,10 @@ fun InspectorPane(
                 modifier = Modifier.size(ShellMetrics.ControlHeight),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "›",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = "Collapse inspector",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -90,7 +96,12 @@ fun InspectorPane(
                         shape = ShellMetrics.FieldShape,
                         contentPadding = PaddingValues(0.dp),
                     ) {
-                        Text("✎")
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = "Edit ACL",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp),
+                        )
                     }
                 },
             )

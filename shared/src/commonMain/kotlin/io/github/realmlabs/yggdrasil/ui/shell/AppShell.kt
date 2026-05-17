@@ -3,6 +3,8 @@ package io.github.realmlabs.yggdrasil.ui.shell
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,7 +13,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -114,6 +116,10 @@ fun AppShell(
                 state = state,
                 onSettings = { showSettings = true },
                 onCommand = { showCommandDialog = true },
+                onNewConnection = { showConnectionDialog = true },
+                onEditConnection = { editingConnection = it },
+                onDeleteConnection = onDeleteConnection,
+                onTestConnection = onTestConnection,
                 search = topSearch,
                 onSearchChange = { topSearch = it },
                 onRunSearch = {
@@ -263,6 +269,10 @@ private fun YggdrasilTopBar(
     onSearchChange: (String) -> Unit,
     onRunSearch: () -> Unit,
     onSelectConnection: (ConnectionId) -> Unit,
+    onNewConnection: () -> Unit,
+    onEditConnection: (ConnectionProfile) -> Unit,
+    onDeleteConnection: (ConnectionId) -> Unit,
+    onTestConnection: (ConnectionId) -> Unit,
     onSettings: () -> Unit,
     onCommand: () -> Unit,
 ) {
@@ -282,7 +292,14 @@ private fun YggdrasilTopBar(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
-        ConnectionStatusPill(state, onSelectConnection)
+        ConnectionStatusPill(
+            state = state,
+            onSelectConnection = onSelectConnection,
+            onNewConnection = onNewConnection,
+            onEditConnection = onEditConnection,
+            onDeleteConnection = onDeleteConnection,
+            onTestConnection = onTestConnection,
+        )
         ModeStatusPill(state)
         BreadcrumbPath(
             path = state.selectedPath,
@@ -294,7 +311,12 @@ private fun YggdrasilTopBar(
             placeholder = "Search nodes & data",
             modifier = Modifier.width(340.dp),
             leading = {
-                SearchGlyph()
+                Icon(
+                    imageVector = Icons.Outlined.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
             },
             trailing = {
                 Text(
@@ -312,8 +334,22 @@ private fun YggdrasilTopBar(
         ) {
             Text("⌘ Command")
         }
-        IconGlyphButton(label = "Search", onClick = onRunSearch) { RefreshGlyph() }
-        IconGlyphButton(label = "Settings", onClick = onSettings) { GearGlyph() }
+        IconGlyphButton(label = "Search", onClick = onRunSearch) {
+            Icon(
+                imageVector = Icons.Outlined.Refresh,
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        IconGlyphButton(label = "Settings", onClick = onSettings) {
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        }
         Box(
             modifier = Modifier
                 .size(38.dp)
@@ -347,6 +383,10 @@ private fun BrandMark() {
 private fun ConnectionStatusPill(
     state: AppState,
     onSelectConnection: (ConnectionId) -> Unit,
+    onNewConnection: () -> Unit,
+    onEditConnection: (ConnectionProfile) -> Unit,
+    onDeleteConnection: (ConnectionId) -> Unit,
+    onTestConnection: (ConnectionId) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val connection = state.activeConnection
@@ -358,7 +398,7 @@ private fun ConnectionStatusPill(
                 .widthIn(max = 260.dp)
                 .height(ShellMetrics.ControlHeight)
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), ShellMetrics.FieldShape)
-                .clickable(enabled = state.connections.isNotEmpty()) { expanded = true }
+                .clickable { expanded = true }
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -379,26 +419,188 @@ private fun ConnectionStatusPill(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            Icon(
+                imageVector = Icons.Outlined.KeyboardArrowDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            state.connections.forEach { profile ->
-                DropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(profile.name)
-                            Text(
-                                profile.connectionString,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    onClick = {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier
+                .width(390.dp)
+                .clip(ShellMetrics.CardShape)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), ShellMetrics.CardShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(8.dp),
+        ) {
+            if (state.connections.isEmpty()) {
+                Text(
+                    text = "No saved connections",
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                state.connections.forEach { profile ->
+                    ConnectionMenuRow(
+                        profile = profile,
+                        status = state.connectionStatuses[profile.id] ?: ConnectionRuntimeStatus.Disconnected,
+                        selected = profile.id == state.activeConnectionId,
+                        onSelect = {
+                            expanded = false
+                            onSelectConnection(profile.id)
+                        },
+                        onTest = {
+                            expanded = false
+                            onTestConnection(profile.id)
+                        },
+                        onEdit = {
+                            expanded = false
+                            onEditConnection(profile)
+                        },
+                        onDelete = {
+                            expanded = false
+                            onDeleteConnection(profile.id)
+                        },
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+            DividerLine(vertical = false)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp)
+                    .clip(ShellMetrics.FieldShape)
+                    .clickable {
                         expanded = false
-                        onSelectConnection(profile.id)
-                    },
+                        onNewConnection()
+                    }
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = "Add connection",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionMenuRow(
+    profile: ConnectionProfile,
+    status: ConnectionRuntimeStatus,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onTest: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val background = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(ShellMetrics.FieldShape)
+            .background(background)
+            .clickable(onClick = onSelect)
+            .padding(start = 10.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        StatusDot(status)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = profile.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (profile.mode == ConnectionMode.ReadWrite) "Read-write" else "Read-only",
+                    modifier = Modifier
+                        .clip(ShellMetrics.TreeRowShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.70f))
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            Text(
+                text = profile.connectionString,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        ConnectionMenuActionButton(
+            label = if (status == ConnectionRuntimeStatus.Connecting) "Testing connection" else "Test connection",
+            icon = Icons.Outlined.Refresh,
+            enabled = status != ConnectionRuntimeStatus.Connecting,
+            onClick = onTest,
+        )
+        ConnectionMenuActionButton(
+            label = "Edit connection",
+            icon = Icons.Outlined.Edit,
+            onClick = onEdit,
+        )
+        ConnectionMenuActionButton(
+            label = "Delete connection",
+            icon = Icons.Outlined.Delete,
+            destructive = true,
+            onClick = onDelete,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConnectionMenuActionButton(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    destructive: Boolean = false,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+    ) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.size(34.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = when {
+                    !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
+                    destructive -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.primary
+                },
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
@@ -470,73 +672,6 @@ private fun IconGlyphButton(
 }
 
 @Composable
-private fun SearchGlyph() {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Canvas(Modifier.size(16.dp)) {
-        drawCircle(
-            color = color,
-            radius = size.minDimension * 0.32f,
-            center = Offset(size.width * 0.44f, size.height * 0.42f),
-            style = Stroke(width = 1.7.dp.toPx(), cap = StrokeCap.Round),
-        )
-        drawLine(
-            color = color,
-            start = Offset(size.width * 0.67f, size.height * 0.66f),
-            end = Offset(size.width * 0.90f, size.height * 0.90f),
-            strokeWidth = 1.7.dp.toPx(),
-            cap = StrokeCap.Round,
-        )
-    }
-}
-
-@Composable
-private fun RefreshGlyph() {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Canvas(Modifier.size(22.dp)) {
-        drawArc(
-            color = color,
-            startAngle = 35f,
-            sweepAngle = 275f,
-            useCenter = false,
-            style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round),
-        )
-        drawLine(
-            color,
-            Offset(size.width * 0.76f, size.height * 0.18f),
-            Offset(size.width * 0.92f, size.height * 0.18f),
-            2.2.dp.toPx()
-        )
-        drawLine(
-            color,
-            Offset(size.width * 0.92f, size.height * 0.18f),
-            Offset(size.width * 0.92f, size.height * 0.34f),
-            2.2.dp.toPx()
-        )
-    }
-}
-
-@Composable
-private fun GearGlyph() {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Canvas(Modifier.size(22.dp)) {
-        drawCircle(color, radius = size.minDimension * 0.30f, style = Stroke(width = 2.2.dp.toPx()))
-        drawCircle(color, radius = size.minDimension * 0.08f)
-        repeat(8) { index ->
-            val angle = Math.toRadians((index * 45).toDouble())
-            val start = Offset(
-                x = size.width / 2 + kotlin.math.cos(angle).toFloat() * size.width * 0.38f,
-                y = size.height / 2 + kotlin.math.sin(angle).toFloat() * size.height * 0.38f,
-            )
-            val end = Offset(
-                x = size.width / 2 + kotlin.math.cos(angle).toFloat() * size.width * 0.48f,
-                y = size.height / 2 + kotlin.math.sin(angle).toFloat() * size.height * 0.48f,
-            )
-            drawLine(color, start, end, 2.dp.toPx(), cap = StrokeCap.Round)
-        }
-    }
-}
-
-@Composable
 private fun ZkCliTerminal(
     state: AppState,
     settings: AppSettings,
@@ -576,7 +711,12 @@ private fun ZkCliTerminal(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("▣", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                imageVector = Icons.Outlined.Code,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
             Row(
                 modifier = Modifier
                     .height(ShellMetrics.ControlHeight)
@@ -587,7 +727,12 @@ private fun ZkCliTerminal(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("zkCli Terminal", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                Text("⌄", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
             }
             Spacer(Modifier.weight(1f))
             if (expanded) {
@@ -597,9 +742,11 @@ private fun ZkCliTerminal(
                 onClick = { expanded = !expanded },
                 modifier = Modifier.size(ShellMetrics.ControlHeight),
             ) {
-                Text(
-                    text = if (expanded) "⌃" else "⌄",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Icon(
+                    imageVector = if (expanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Collapse terminal" else "Expand terminal",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }

@@ -3,6 +3,8 @@ package io.github.realmlabs.yggdrasil.ui.shell
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -179,7 +181,15 @@ private fun NodeDataViewer(
                         enabled = !readOnly,
                         modifier = Modifier.height(ShellMetrics.ControlHeight),
                         shape = ShellMetrics.FieldShape,
-                    ) { Text("✎  Edit") }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("Edit")
+                    }
                     OutlinedButton(
                         onClick = onDeleteNode,
                         enabled = !readOnly,

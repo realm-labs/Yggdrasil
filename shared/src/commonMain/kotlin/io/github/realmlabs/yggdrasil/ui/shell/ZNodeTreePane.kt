@@ -3,10 +3,10 @@ package io.github.realmlabs.yggdrasil.ui.shell
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -14,7 +14,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,13 +55,21 @@ fun TreePane(
                 onClick = onRefreshSelectedPath,
                 enabled = state.selectedPath != null,
             ) {
-                TreeRefreshGlyph(enabled = state.selectedPath != null)
+                TreeToolbarIcon(
+                    icon = Icons.Outlined.Refresh,
+                    contentDescription = "Refresh selected znode",
+                    enabled = state.selectedPath != null,
+                )
             }
             TreeToolbarIconButton(
                 onClick = onCreateNode,
                 enabled = state.activeConnection != null && !state.isReadOnly,
             ) {
-                TreeMenuGlyph(enabled = state.activeConnection != null && !state.isReadOnly)
+                TreeToolbarIcon(
+                    icon = Icons.Outlined.Add,
+                    contentDescription = "Create znode",
+                    enabled = state.activeConnection != null && !state.isReadOnly,
+                )
             }
         }
         val activeConnection = state.activeConnection
@@ -146,59 +153,21 @@ private fun TreeToolbarIconButton(
 }
 
 @Composable
-private fun TreeRefreshGlyph(enabled: Boolean) {
-    val color = if (enabled) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-    }
-    Canvas(Modifier.size(20.dp)) {
-        drawArc(
-            color = color,
-            startAngle = 35f,
-            sweepAngle = 280f,
-            useCenter = false,
-            style = Stroke(width = 2.1.dp.toPx(), cap = StrokeCap.Round),
-        )
-        drawLine(
-            color = color,
-            start = Offset(size.width * 0.74f, size.height * 0.15f),
-            end = Offset(size.width * 0.94f, size.height * 0.15f),
-            strokeWidth = 2.1.dp.toPx(),
-            cap = StrokeCap.Round,
-        )
-        drawLine(
-            color = color,
-            start = Offset(size.width * 0.94f, size.height * 0.15f),
-            end = Offset(size.width * 0.94f, size.height * 0.35f),
-            strokeWidth = 2.1.dp.toPx(),
-            cap = StrokeCap.Round,
-        )
-    }
-}
-
-@Composable
-private fun TreeMenuGlyph(enabled: Boolean) {
-    val color = if (enabled) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-    }
-    Column(
-        modifier = Modifier.size(20.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        repeat(3) {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 1.5.dp)
-                    .size(3.5.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(color),
-            )
-        }
-    }
+private fun TreeToolbarIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+) {
+    Icon(
+        imageVector = icon,
+        contentDescription = contentDescription,
+        tint = if (enabled) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+        },
+        modifier = Modifier.size(21.dp),
+    )
 }
 
 @Composable
