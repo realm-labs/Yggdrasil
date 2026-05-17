@@ -92,8 +92,12 @@
     <string name="node_loading_body">The node detail request is in progress.</string>
     <string name="node_load_failed_title">Could not load %1$s</string>
     <string name="node_valid_json">✓ Valid JSON</string>
+    <string name="node_valid_hex">✓ Valid hex</string>
+    <string name="node_valid_base64">✓ Valid Base64</string>
     <string name="node_empty_data">(empty data)</string>
     <string name="node_invalid_json">Invalid JSON</string>
+    <string name="node_invalid_hex">Invalid hex</string>
+    <string name="node_invalid_base64">Invalid Base64</string>
     <string name="node_copy_data">Copy node data</string>
     <string name="node_truncated_chars">... truncated %1$d characters</string>
     <string name="node_truncated_bytes">... truncated %1$d bytes</string>
@@ -104,6 +108,7 @@
     <string name="node_format_text">Text</string>
     <string name="node_format_json">JSON</string>
     <string name="node_format_hex">Hex</string>
+    <string name="node_format_base64">Base64</string>
 
     <string name="inspector_expand">Expand inspector</string>
     <string name="inspector_collapse">Collapse inspector</string>

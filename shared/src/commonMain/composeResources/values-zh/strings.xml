@@ -91,8 +91,12 @@
     <string name="node_loading_body">正在请求节点详情。</string>
     <string name="node_load_failed_title">无法加载 %1$s</string>
     <string name="node_valid_json">✓ JSON 有效</string>
+    <string name="node_valid_hex">✓ 十六进制有效</string>
+    <string name="node_valid_base64">✓ Base64 有效</string>
     <string name="node_empty_data">（空数据）</string>
     <string name="node_invalid_json">JSON 无效</string>
+    <string name="node_invalid_hex">十六进制无效</string>
+    <string name="node_invalid_base64">Base64 无效</string>
     <string name="node_copy_data">复制节点数据</string>
     <string name="node_truncated_chars">... 已截断 %1$d 个字符</string>
     <string name="node_truncated_bytes">... 已截断 %1$d 字节</string>
@@ -103,6 +107,7 @@
     <string name="node_format_text">文本</string>
     <string name="node_format_json">JSON</string>
     <string name="node_format_hex">十六进制</string>
+    <string name="node_format_base64">Base64</string>
 
     <string name="inspector_expand">展开检查器</string>
     <string name="inspector_collapse">收起检查器</string>

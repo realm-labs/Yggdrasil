@@ -25,6 +25,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ZNodeDetailState
+import io.github.realmlabs.yggdrasil.application.workflow.parseEditedZNodeData
+import io.github.realmlabs.yggdrasil.application.workflow.renderEditableZNodeData
+import io.github.realmlabs.yggdrasil.domain.model.OperationResult
 import io.github.realmlabs.yggdrasil.domain.model.ZNodeDataFormat
 import io.github.realmlabs.yggdrasil.domain.model.ZNodeDetail
 import io.github.realmlabs.yggdrasil.platform.copyPlainTextToClipboard
@@ -90,9 +93,13 @@ private fun NodeDataViewer(
         mutableStateOf(detail.detectedFormat.toViewFormat())
     }
     var editing by remember(detail.path, detail.stat.version) { mutableStateOf(false) }
-    var editText by remember(detail.path, detail.stat.version) { mutableStateOf(detail.data.toTextPreview()) }
+    var editText by remember(detail.path, detail.stat.version) {
+        mutableStateOf(renderEditableZNodeData(detail.data, selectedFormat))
+    }
     val emptyData = stringResource(strings.node_empty_data)
     val invalidJson = stringResource(strings.node_invalid_json)
+    val invalidHex = stringResource(strings.node_invalid_hex)
+    val invalidBase64 = stringResource(strings.node_invalid_base64)
     val truncatedCharsPrefix = stringResource(strings.node_truncated_chars_prefix)
     val truncatedCharsSuffix = stringResource(strings.node_truncated_chars_suffix)
     val truncatedBytesPrefix = stringResource(strings.node_truncated_bytes_prefix)
@@ -118,12 +125,66 @@ private fun NodeDataViewer(
             truncatedBytesSuffix,
         )
     }
-    val jsonValidation = remember(selectedFormat, editing, editText, detail.path, detail.stat.version) {
-        if (selectedFormat != ZNodeDataFormat.Json) {
-            null
-        } else {
-            val jsonText = if (editing) editText else detail.data.decodeToString()
-            if (jsonText.isValidJsonDocument()) JsonValidation.Valid else JsonValidation.Invalid
+    val displayedData = if (editing) editText else renderedData
+    val editParseResult = remember(selectedFormat, editing, editText) {
+        if (editing) parseEditedZNodeData(editText, selectedFormat) else null
+    }
+    val formatValidation = remember(selectedFormat, editing, editText, detail.path, detail.stat.version) {
+        when {
+            selectedFormat == ZNodeDataFormat.Json -> {
+                val jsonText = if (editing) editText else detail.data.decodeToString()
+                if (jsonText.isValidJsonDocument()) FormatValidation.ValidJson else FormatValidation.InvalidJson
+            }
+
+            editing && selectedFormat == ZNodeDataFormat.Hex -> {
+                if (editParseResult is OperationResult.Success) FormatValidation.ValidHex else FormatValidation.InvalidHex
+            }
+
+            editing && selectedFormat == ZNodeDataFormat.Base64 -> {
+                if (editParseResult is OperationResult.Success) FormatValidation.ValidBase64 else FormatValidation.InvalidBase64
+            }
+
+            else -> null
+        }
+    }
+    val canSaveEditedData = !editing || editParseResult is OperationResult.Success
+    val invalidEditMessage = when (editParseResult) {
+        is OperationResult.Failure -> when (editParseResult.error.message) {
+            "JSON data is invalid." -> invalidJson
+            "Hex data is invalid." -> invalidHex
+            "Base64 data is invalid." -> invalidBase64
+            else -> editParseResult.error.message
+        }
+
+        else -> null
+    }
+
+    fun startEditing() {
+        editText = renderEditableZNodeData(detail.data, selectedFormat)
+        editing = true
+    }
+
+    fun selectFormat(format: ZNodeDataFormat) {
+        selectedFormat = format
+        if (editing) {
+            editText = renderEditableZNodeData(detail.data, format)
+        }
+    }
+
+    fun resetEditing() {
+        editing = false
+        editText = renderEditableZNodeData(detail.data, selectedFormat)
+    }
+
+    fun saveEditedData() {
+        when (val parsed = editParseResult) {
+            is OperationResult.Success -> {
+                onUpdateNodeData(parsed.value, detail.stat.version)
+                editing = false
+            }
+
+            null,
+            is OperationResult.Failure -> Unit
         }
     }
 
@@ -155,7 +216,7 @@ private fun NodeDataViewer(
                         if (editing) {
                             editText
                         } else {
-                            detail.data.decodeToString()
+                            renderedData
                         },
                     )
                 },
@@ -164,11 +225,7 @@ private fun NodeDataViewer(
                 label = stringResource(strings.common_edit),
                 icon = Icons.Outlined.Edit,
                 enabled = !readOnly && !editing,
-                onClick = {
-                    selectedFormat = ZNodeDataFormat.Text
-                    editText = detail.data.toTextPreview()
-                    editing = true
-                },
+                onClick = ::startEditing,
             )
             NodeActionButton(
                 label = stringResource(strings.common_delete),
@@ -181,7 +238,7 @@ private fun NodeDataViewer(
         }
         DataFormatSegmentedControl(
             selectedFormat = selectedFormat,
-            onSelectFormat = { selectedFormat = it },
+            onSelectFormat = ::selectFormat,
         )
         Column(
             modifier = Modifier
@@ -198,7 +255,7 @@ private fun NodeDataViewer(
                     .verticalScroll(rememberScrollState()),
             ) {
                 Text(
-                    text = renderedData.lineSequence().mapIndexed { index, _ -> (index + 1).toString() }
+                    text = displayedData.lineSequence().mapIndexed { index, _ -> (index + 1).toString() }
                         .joinToString("\n"),
                     modifier = Modifier
                         .width(50.dp)
@@ -219,7 +276,7 @@ private fun NodeDataViewer(
                         )
                     } else {
                         NodeDataText(
-                            renderedData = renderedData,
+                            renderedData = displayedData,
                             format = selectedFormat,
                             invalidJsonPrefix = invalidJson
                         )
@@ -232,15 +289,22 @@ private fun NodeDataViewer(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("${detail.data.size.toDisplaySize()}   UTF-8", style = MaterialTheme.typography.labelMedium)
                 Text(
-                    text = when (jsonValidation) {
-                        JsonValidation.Valid -> stringResource(strings.node_valid_json)
-                        JsonValidation.Invalid -> stringResource(strings.node_invalid_json)
+                    "${detail.data.size.toDisplaySize()}   ${selectedFormat.editorEncodingLabel()}",
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Text(
+                    text = invalidEditMessage ?: when (formatValidation) {
+                        FormatValidation.ValidJson -> stringResource(strings.node_valid_json)
+                        FormatValidation.InvalidJson -> stringResource(strings.node_invalid_json)
+                        FormatValidation.ValidHex -> stringResource(strings.node_valid_hex)
+                        FormatValidation.InvalidHex -> stringResource(strings.node_invalid_hex)
+                        FormatValidation.ValidBase64 -> stringResource(strings.node_valid_base64)
+                        FormatValidation.InvalidBase64 -> stringResource(strings.node_invalid_base64)
                         null -> ""
                     },
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (jsonValidation == JsonValidation.Invalid) {
+                    color = if (formatValidation?.invalid == true || invalidEditMessage != null) {
                         MaterialTheme.colorScheme.error
                     } else {
                         MaterialTheme.colorScheme.primary
@@ -249,18 +313,13 @@ private fun NodeDataViewer(
                 Spacer(Modifier.weight(1f))
                 if (editing) {
                     Button(
-                        onClick = {
-                            onUpdateNodeData(editText.encodeToByteArray(), detail.stat.version)
-                            editing = false
-                        },
+                        onClick = ::saveEditedData,
+                        enabled = canSaveEditedData,
                         modifier = Modifier.height(ShellMetrics.ControlHeight),
                         shape = ShellMetrics.FieldShape,
                     ) { Text(stringResource(strings.common_save)) }
                     OutlinedButton(
-                        onClick = {
-                            editing = false
-                            editText = detail.data.toTextPreview()
-                        },
+                        onClick = ::resetEditing,
                         modifier = Modifier.height(ShellMetrics.ControlHeight),
                         shape = ShellMetrics.FieldShape,
                     ) { Text(stringResource(strings.common_cancel)) }
@@ -270,9 +329,13 @@ private fun NodeDataViewer(
     }
 }
 
-private enum class JsonValidation {
-    Valid,
-    Invalid,
+private enum class FormatValidation(val invalid: Boolean) {
+    ValidJson(invalid = false),
+    InvalidJson(invalid = true),
+    ValidHex(invalid = false),
+    InvalidHex(invalid = true),
+    ValidBase64(invalid = false),
+    InvalidBase64(invalid = true),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -360,6 +423,7 @@ private fun DataFormatSegmentedControl(
         ZNodeDataFormat.Text to stringResource(strings.node_format_text),
         ZNodeDataFormat.Json to stringResource(strings.node_format_json),
         ZNodeDataFormat.Hex to stringResource(strings.node_format_hex),
+        ZNodeDataFormat.Base64 to stringResource(strings.node_format_base64),
     )
     Row(
         modifier = Modifier
@@ -373,7 +437,7 @@ private fun DataFormatSegmentedControl(
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(78.dp)
+                    .width(82.dp)
                     .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
                     .clickable { onSelectFormat(format) },
                 contentAlignment = Alignment.Center,
@@ -407,12 +471,19 @@ private fun ZNodeDataFormat.toViewFormat(): ZNodeDataFormat =
     when (this) {
         ZNodeDataFormat.Json -> ZNodeDataFormat.Json
         ZNodeDataFormat.Hex,
-        ZNodeDataFormat.Base64,
         ZNodeDataFormat.Unknown -> ZNodeDataFormat.Hex
 
+        ZNodeDataFormat.Base64 -> ZNodeDataFormat.Base64
         ZNodeDataFormat.Text,
         ZNodeDataFormat.Yaml,
         ZNodeDataFormat.Properties -> ZNodeDataFormat.Text
+    }
+
+private fun ZNodeDataFormat.editorEncodingLabel(): String =
+    when (this) {
+        ZNodeDataFormat.Hex -> "HEX"
+        ZNodeDataFormat.Base64 -> "Base64"
+        else -> "UTF-8"
     }
 
 private fun ZNodeDetail.renderData(
@@ -429,6 +500,7 @@ private fun ZNodeDetail.renderData(
     return when (format) {
         ZNodeDataFormat.Json -> renderJsonData(invalidJson, truncatedCharsPrefix, truncatedCharsSuffix)
         ZNodeDataFormat.Hex -> data.toHexPreview(truncatedBytesPrefix, truncatedBytesSuffix)
+        ZNodeDataFormat.Base64 -> renderEditableZNodeData(data, ZNodeDataFormat.Base64)
         else -> data.toTextPreview(truncatedCharsPrefix, truncatedCharsSuffix)
     }
 }
