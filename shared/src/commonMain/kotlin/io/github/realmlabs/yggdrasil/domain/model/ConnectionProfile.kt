@@ -32,6 +32,9 @@ data class ConnectionProfileDraft(
     val sshPort: String = "22",
     val sshUsername: String = "",
     val sshIdentityFile: String = "",
+    val sshAuthenticationMethod: SshAuthenticationMethod = SshAuthenticationMethod.PublicKey,
+    val sshCredentialRef: String? = null,
+    val sshSecret: String = "",
 ) {
     fun toProfile(id: ConnectionId): OperationResult<ConnectionProfile> {
         val trimmedName = name.trim()
@@ -84,13 +87,23 @@ data class ConnectionProfileDraft(
         val trimmedHost = sshHost.trim()
         val trimmedUsername = sshUsername.trim()
         val trimmedIdentityFile = sshIdentityFile.trim()
+        val trimmedSecret = sshSecret.trim()
         val parsedPort = sshPort.trim().toIntOrNull()
+        val credentialRef = sshCredentialRef?.takeIf { it.isNotBlank() }
+            ?: if (trimmedSecret.isNotBlank()) {
+                "ssh:${trimmedUsername}@${trimmedHost}:${parsedPort ?: sshPort.trim()}:${sshAuthenticationMethod.name.lowercase()}"
+            } else {
+                null
+            }
 
         return when {
             trimmedHost.isBlank() -> OperationResult.Failure(AppError.Validation("SSH host is required."))
             trimmedUsername.isBlank() -> OperationResult.Failure(AppError.Validation("SSH username is required."))
             parsedPort == null || parsedPort !in 1..65535 -> {
                 OperationResult.Failure(AppError.Validation("SSH port must be between 1 and 65535."))
+            }
+            sshAuthenticationMethod == SshAuthenticationMethod.Password && credentialRef == null -> {
+                OperationResult.Failure(AppError.Validation("SSH password is required."))
             }
 
             else -> OperationResult.Success(
@@ -99,6 +112,8 @@ data class ConnectionProfileDraft(
                     port = parsedPort,
                     username = trimmedUsername,
                     identityFile = trimmedIdentityFile.takeIf { it.isNotBlank() },
+                    authenticationMethod = sshAuthenticationMethod,
+                    credentialRef = credentialRef,
                 ),
             )
         }
@@ -108,6 +123,11 @@ data class ConnectionProfileDraft(
 enum class ConnectionMode {
     ReadOnly,
     ReadWrite,
+}
+
+enum class SshAuthenticationMethod {
+    PublicKey,
+    Password,
 }
 
 sealed interface ConnectionSecurity {
@@ -128,6 +148,8 @@ data class SshTunnelConfig(
     val port: Int = 22,
     val username: String,
     val identityFile: String? = null,
+    val authenticationMethod: SshAuthenticationMethod = SshAuthenticationMethod.PublicKey,
+    val credentialRef: String? = null,
 ) {
     init {
         require(host.isNotBlank()) { "SSH host cannot be blank." }

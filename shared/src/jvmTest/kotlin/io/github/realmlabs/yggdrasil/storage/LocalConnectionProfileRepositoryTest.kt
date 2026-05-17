@@ -23,6 +23,8 @@ class LocalConnectionProfileRepositoryTest {
                     port = 2222,
                     username = "deploy",
                     identityFile = "~/.ssh/id_ed25519",
+                    authenticationMethod = SshAuthenticationMethod.PublicKey,
+                    credentialRef = "ssh:deploy@bastion.example.com:2222:publickey",
                 ),
                 mode = ConnectionMode.ReadWrite,
             )

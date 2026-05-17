@@ -2,6 +2,7 @@ package io.github.realmlabs.yggdrasil.application.state
 
 import io.github.realmlabs.yggdrasil.domain.model.*
 import io.github.realmlabs.yggdrasil.domain.repository.ConnectionProfileRepository
+import io.github.realmlabs.yggdrasil.domain.repository.SshCredentialRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ZNodeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -135,6 +136,35 @@ class YggdrasilStateHolderTest {
         assertEquals(listOf(connection.id), zNodeRepository.closedConnectionIds)
         assertEquals(ZNodePath.Root, holder.state.selectedPath)
         assertFalse(holder.state.isReadOnly)
+    }
+
+    @Test
+    fun createConnectionStoresSshSecretInCredentialRepository() {
+        val profileRepository = FakeConnectionProfileRepository()
+        val credentialRepository = FakeSshCredentialRepository()
+        val holder = YggdrasilStateHolder(
+            connectionProfileRepository = profileRepository,
+            sshCredentialRepository = credentialRepository,
+        )
+
+        runBlocking {
+            holder.createConnection(
+                ConnectionProfileDraft(
+                    name = "Remote",
+                    connectionString = "zk.internal:2181",
+                    sshTunnelEnabled = true,
+                    sshHost = "bastion.example.com",
+                    sshUsername = "deploy",
+                    sshAuthenticationMethod = SshAuthenticationMethod.Password,
+                    sshSecret = "secret",
+                ),
+            )
+        }
+
+        val savedProfile = assertNotNull(profileRepository.savedProfile)
+        val credentialRef = assertNotNull(savedProfile.sshTunnel?.credentialRef)
+        assertEquals("secret", credentialRepository.savedCredentials[credentialRef])
+        assertTrue(!savedProfile.toString().contains("secret"))
     }
 
     @Test
@@ -411,5 +441,19 @@ class YggdrasilStateHolderTest {
 
         override suspend fun deleteProfile(id: ConnectionId): OperationResult<Unit> =
             OperationResult.Success(Unit)
+    }
+
+    private class FakeSshCredentialRepository : SshCredentialRepository {
+        val savedCredentials = mutableMapOf<String, String>()
+
+        override suspend fun saveCredential(ref: String, secret: String): OperationResult<Unit> {
+            savedCredentials[ref] = secret
+            return OperationResult.Success(Unit)
+        }
+
+        override suspend fun deleteCredential(ref: String): OperationResult<Unit> {
+            savedCredentials.remove(ref)
+            return OperationResult.Success(Unit)
+        }
     }
 }

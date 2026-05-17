@@ -147,14 +147,21 @@ private data class SshTunnelRecord(
     val port: Int = 22,
     val username: String,
     val identityFile: String? = null,
+    val authenticationMethod: String = SshAuthenticationMethod.PublicKey.name,
+    val credentialRef: String? = null,
 ) {
     fun toDomain(): SshTunnelConfig? =
         try {
+            val parsedAuthenticationMethod = SshAuthenticationMethod.entries
+                .firstOrNull { it.name == authenticationMethod }
+                ?: SshAuthenticationMethod.PublicKey
             SshTunnelConfig(
                 host = host,
                 port = port,
                 username = username,
                 identityFile = identityFile,
+                authenticationMethod = parsedAuthenticationMethod,
+                credentialRef = credentialRef,
             )
         } catch (_: IllegalArgumentException) {
             null
@@ -167,6 +174,8 @@ private data class SshTunnelRecord(
                 port = config.port,
                 username = config.username,
                 identityFile = config.identityFile,
+                authenticationMethod = config.authenticationMethod.name,
+                credentialRef = config.credentialRef,
             )
     }
 }

@@ -2,14 +2,8 @@ package io.github.realmlabs.yggdrasil.ui.shell
 
 import androidx.compose.runtime.Composable
 import io.github.realmlabs.yggdrasil.application.state.StatusMessage
-import io.github.realmlabs.yggdrasil.domain.model.AppError
-import io.github.realmlabs.yggdrasil.domain.model.ZNodeCompareDifference
-import io.github.realmlabs.yggdrasil.domain.model.ZNodeCompareDifferenceType
-import io.github.realmlabs.yggdrasil.domain.model.ZNodeImportOperation
-import io.github.realmlabs.yggdrasil.domain.model.ZNodeImportOperationType
-import io.github.realmlabs.yggdrasil.domain.model.ZNodeTraversalStopReason
+import io.github.realmlabs.yggdrasil.domain.model.*
 import org.jetbrains.compose.resources.stringResource
-import yggdrasil.shared.generated.resources.Res
 import yggdrasil.shared.generated.resources.*
 
 @Composable
@@ -75,6 +69,10 @@ internal fun AppError.localized(): String {
         message == "SSH host is required." -> stringResource(strings.error_ssh_host_required)
         message == "SSH username is required." -> stringResource(strings.error_ssh_username_required)
         message == "SSH port must be between 1 and 65535." -> stringResource(strings.error_ssh_port_invalid)
+        message == "SSH password is required." -> stringResource(strings.error_ssh_password_required)
+        message == "SSH credential storage is not available." -> {
+            stringResource(strings.error_ssh_credential_storage_unavailable)
+        }
         message.startsWith("Invalid ZooKeeper path: ") -> {
             stringResource(strings.error_invalid_zk_path, message.removePrefix("Invalid ZooKeeper path: "))
         }

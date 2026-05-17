@@ -58,8 +58,15 @@
     <string name="connection_ssh_host">SSH 主机</string>
     <string name="connection_ssh_port">端口</string>
     <string name="connection_ssh_user">SSH 用户</string>
+    <string name="connection_ssh_auth_public_key">公钥</string>
+    <string name="connection_ssh_auth_password">密码</string>
     <string name="connection_identity_file">密钥文件</string>
     <string name="connection_identity_placeholder">可选，默认使用 ssh agent</string>
+    <string name="connection_ssh_password">SSH 密码</string>
+    <string name="connection_ssh_password_placeholder">保存到 macOS Keychain</string>
+    <string name="connection_ssh_passphrase">密钥密码</string>
+    <string name="connection_ssh_passphrase_placeholder">可选，保存到 macOS Keychain</string>
+    <string name="connection_ssh_keep_saved_secret">留空则保留已保存的 secret</string>
 
     <string name="tree_title">Znode 浏览器</string>
     <string name="tree_filter_placeholder">过滤 znode...</string>
@@ -314,6 +321,8 @@
     <string name="error_ssh_host_required">SSH 主机必填。</string>
     <string name="error_ssh_username_required">SSH 用户名必填。</string>
     <string name="error_ssh_port_invalid">SSH 端口必须在 1 到 65535 之间。</string>
+    <string name="error_ssh_password_required">SSH 密码必填。</string>
+    <string name="error_ssh_credential_storage_unavailable">SSH 凭据存储不可用。</string>
     <string name="error_invalid_zk_path">ZooKeeper 路径无效：%1$s</string>
     <string name="error_command_empty">命令不能为空。</string>
     <string name="error_unsupported_zk_command">不支持的 zk 命令：%1$s。输入 help 查看支持的命令。</string>

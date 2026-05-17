@@ -2,6 +2,7 @@ package io.github.realmlabs.yggdrasil.platform
 
 import io.github.realmlabs.yggdrasil.storage.LocalAppSettingsRepository
 import io.github.realmlabs.yggdrasil.storage.LocalConnectionProfileRepository
+import io.github.realmlabs.yggdrasil.storage.MacOsKeychainSshCredentialRepository
 import io.github.realmlabs.yggdrasil.zookeeper.CuratorZNodeRepository
 import io.github.realmlabs.yggdrasil.zookeeper.CuratorZooKeeperConnectionTester
 import java.nio.file.Path
@@ -12,6 +13,7 @@ actual fun createYggdrasilServices(): YggdrasilServices {
     return YggdrasilServices(
         appSettingsRepository = LocalAppSettingsRepository(configDirectory.resolve("settings.json")),
         connectionProfileRepository = LocalConnectionProfileRepository(configDirectory.resolve("connections.json")),
+        sshCredentialRepository = MacOsKeychainSshCredentialRepository(),
         zooKeeperConnectionTester = CuratorZooKeeperConnectionTester(),
         zNodeRepository = CuratorZNodeRepository(),
     )

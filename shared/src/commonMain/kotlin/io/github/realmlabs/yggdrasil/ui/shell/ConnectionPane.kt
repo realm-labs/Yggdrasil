@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
@@ -298,6 +299,11 @@ fun ConnectionDialog(
     var sshPort by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.port?.toString() ?: "22") }
     var sshUsername by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.username.orEmpty()) }
     var sshIdentityFile by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.identityFile.orEmpty()) }
+    var sshAuthenticationMethod by remember(profile?.id) {
+        mutableStateOf(profile?.sshTunnel?.authenticationMethod ?: SshAuthenticationMethod.PublicKey)
+    }
+    var sshCredentialRef by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.credentialRef) }
+    var sshSecret by remember(profile?.id) { mutableStateOf("") }
     var validationMessage by remember { mutableStateOf<String?>(null) }
     val connectionNameRequired = stringResource(strings.error_connection_name_required)
     val zkConnectionRequired = stringResource(strings.error_zk_connection_required)
@@ -305,6 +311,7 @@ fun ConnectionDialog(
     val sshHostRequired = stringResource(strings.error_ssh_host_required)
     val sshUsernameRequired = stringResource(strings.error_ssh_username_required)
     val sshPortInvalid = stringResource(strings.error_ssh_port_invalid)
+    val sshPasswordRequired = stringResource(strings.error_ssh_password_required)
     fun validationErrorMessage(error: AppError): String =
         when (error.message) {
             "Connection name is required." -> connectionNameRequired
@@ -313,6 +320,7 @@ fun ConnectionDialog(
             "SSH host is required." -> sshHostRequired
             "SSH username is required." -> sshUsernameRequired
             "SSH port must be between 1 and 65535." -> sshPortInvalid
+            "SSH password is required." -> sshPasswordRequired
             else -> error.message
         }
 
@@ -409,14 +417,73 @@ fun ConnectionDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    TextField(
-                        value = sshIdentityFile,
-                        onValueChange = { sshIdentityFile = it },
-                        label = { Text(stringResource(strings.connection_identity_file)) },
-                        placeholder = { Text(stringResource(strings.connection_identity_placeholder)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ModeButton(
+                            text = stringResource(strings.connection_ssh_auth_public_key),
+                            selected = sshAuthenticationMethod == SshAuthenticationMethod.PublicKey,
+                            onClick = {
+                                sshAuthenticationMethod = SshAuthenticationMethod.PublicKey
+                                sshCredentialRef = null
+                                sshSecret = ""
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        ModeButton(
+                            text = stringResource(strings.connection_ssh_auth_password),
+                            selected = sshAuthenticationMethod == SshAuthenticationMethod.Password,
+                            onClick = {
+                                sshAuthenticationMethod = SshAuthenticationMethod.Password
+                                sshCredentialRef = null
+                                sshSecret = ""
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (sshAuthenticationMethod == SshAuthenticationMethod.PublicKey) {
+                        TextField(
+                            value = sshIdentityFile,
+                            onValueChange = { sshIdentityFile = it },
+                            label = { Text(stringResource(strings.connection_identity_file)) },
+                            placeholder = { Text(stringResource(strings.connection_identity_placeholder)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        TextField(
+                            value = sshSecret,
+                            onValueChange = { sshSecret = it },
+                            label = { Text(stringResource(strings.connection_ssh_passphrase)) },
+                            placeholder = {
+                                Text(
+                                    if (sshCredentialRef != null) {
+                                        stringResource(strings.connection_ssh_keep_saved_secret)
+                                    } else {
+                                        stringResource(strings.connection_ssh_passphrase_placeholder)
+                                    },
+                                )
+                            },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        TextField(
+                            value = sshSecret,
+                            onValueChange = { sshSecret = it },
+                            label = { Text(stringResource(strings.connection_ssh_password)) },
+                            placeholder = {
+                                Text(
+                                    if (sshCredentialRef != null) {
+                                        stringResource(strings.connection_ssh_keep_saved_secret)
+                                    } else {
+                                        stringResource(strings.connection_ssh_password_placeholder)
+                                    },
+                                )
+                            },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
                 validationMessage?.let { message ->
                     Text(
@@ -440,6 +507,9 @@ fun ConnectionDialog(
                         sshPort = sshPort,
                         sshUsername = sshUsername,
                         sshIdentityFile = sshIdentityFile,
+                        sshAuthenticationMethod = sshAuthenticationMethod,
+                        sshCredentialRef = sshCredentialRef,
+                        sshSecret = sshSecret,
                     )
                     when (val validation = draft.toProfile(ConnectionId("validation"))) {
                         is OperationResult.Success -> onSave(draft)

@@ -61,6 +61,23 @@ class ConnectionProfileDraftTest {
     }
 
     @Test
+    fun createsProfileWithSavedSshPasswordReference() {
+        val result = ConnectionProfileDraft(
+            name = "Remote",
+            connectionString = "zk.internal:2181",
+            sshTunnelEnabled = true,
+            sshHost = "bastion.example.com",
+            sshUsername = "deploy",
+            sshAuthenticationMethod = SshAuthenticationMethod.Password,
+            sshSecret = "secret",
+        ).toProfile(ConnectionId("remote"))
+
+        val profile = assertIs<OperationResult.Success<ConnectionProfile>>(result).value
+        assertEquals(SshAuthenticationMethod.Password, profile.sshTunnel?.authenticationMethod)
+        assertEquals("ssh:deploy@bastion.example.com:22:password", profile.sshTunnel?.credentialRef)
+    }
+
+    @Test
     fun rejectsIncompleteSshTunnel() {
         val result = ConnectionProfileDraft(
             name = "Remote",

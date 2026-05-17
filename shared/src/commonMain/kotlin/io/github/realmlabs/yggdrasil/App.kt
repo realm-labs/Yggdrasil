@@ -20,6 +20,7 @@ fun App() {
         YggdrasilStateHolder(
             appSettingsRepository = services.appSettingsRepository,
             connectionProfileRepository = services.connectionProfileRepository,
+            sshCredentialRepository = services.sshCredentialRepository,
             zooKeeperConnectionTester = services.zooKeeperConnectionTester,
             zNodeRepository = services.zNodeRepository,
         )

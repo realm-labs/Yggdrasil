@@ -3,6 +3,8 @@ package io.github.realmlabs.yggdrasil.zookeeper
 import io.github.realmlabs.yggdrasil.domain.model.AppError
 import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfile
 import io.github.realmlabs.yggdrasil.domain.model.OperationResult
+import io.github.realmlabs.yggdrasil.domain.model.SshAuthenticationMethod
+import io.github.realmlabs.yggdrasil.storage.SshKeychainServiceName
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withTimeout
 import org.apache.curator.framework.CuratorFramework
@@ -10,6 +12,8 @@ import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.ExponentialBackoffRetry
 import org.apache.curator.x.async.AsyncCuratorFramework
 import java.net.ServerSocket
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -97,6 +101,7 @@ private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
     val endpoint = parseSingleZooKeeperEndpoint(profile.connectionString)
     val localPort = findAvailableLocalPort()
     val forwarding = "127.0.0.1:$localPort:${endpoint.host}:${endpoint.port}"
+    val askPassScript = tunnel.credentialRef?.let(::createAskPassScript)
     val command = buildList {
         add("ssh")
         add("-N")
@@ -107,13 +112,17 @@ private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
         add("-o")
         add("ExitOnForwardFailure=yes")
         add("-o")
-        add("BatchMode=yes")
+        add("BatchMode=${if (askPassScript == null) "yes" else "no"}")
         add("-o")
-        add("NumberOfPasswordPrompts=0")
+        add("NumberOfPasswordPrompts=${if (askPassScript == null) "0" else "1"}")
         add("-o")
         add("StrictHostKeyChecking=accept-new")
         add("-o")
         add("ConnectTimeout=10")
+        if (tunnel.authenticationMethod == SshAuthenticationMethod.Password) {
+            add("-o")
+            add("PreferredAuthentications=password,keyboard-interactive")
+        }
         tunnel.identityFile?.takeIf { it.isNotBlank() }?.let { identityFile ->
             add("-i")
             add(identityFile)
@@ -121,13 +130,19 @@ private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
         add(tunnel.target)
     }
 
-    val process = ProcessBuilder(command)
+    val processBuilder = ProcessBuilder(command)
         .redirectErrorStream(true)
-        .start()
+    askPassScript?.let { script ->
+        processBuilder.environment()["SSH_ASKPASS"] = script.toAbsolutePath().toString()
+        processBuilder.environment()["SSH_ASKPASS_REQUIRE"] = "force"
+        processBuilder.environment()["DISPLAY"] = processBuilder.environment()["DISPLAY"] ?: "localhost:0"
+    }
+    val process = processBuilder.start()
     process.outputStream.close()
     val exitedEarly = process.waitFor(700, TimeUnit.MILLISECONDS)
     if (exitedEarly) {
         val output = process.inputStream.bufferedReader().readText()
+        askPassScript?.let(Files::deleteIfExists)
         throw IllegalStateException(
             "SSH tunnel failed to start.${
                 output.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
@@ -137,8 +152,29 @@ private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
     return SshTunnelProcess(
         process = process,
         connectionString = "127.0.0.1:$localPort",
+        askPassScript = askPassScript,
     )
 }
+
+private fun createAskPassScript(credentialRef: String): Path {
+    val script = Files.createTempFile("yggdrasil-ssh-askpass", ".sh")
+    val content = """
+        |#!/bin/sh
+        |exec /usr/bin/security find-generic-password -s ${SshKeychainServiceName.shellQuote()} -a ${credentialRef.shellQuote()} -w
+        |
+    """.trimMargin()
+    Files.writeString(script, content)
+    script.toFile().setReadable(false, false)
+    script.toFile().setWritable(false, false)
+    script.toFile().setExecutable(false, false)
+    script.toFile().setReadable(true, true)
+    script.toFile().setWritable(true, true)
+    script.toFile().setExecutable(true, true)
+    return script
+}
+
+private fun String.shellQuote(): String =
+    "'${replace("'", "'\"'\"'")}'"
 
 private data class ZooKeeperEndpoint(
     val host: String,
@@ -164,11 +200,13 @@ private fun findAvailableLocalPort(): Int =
 private class SshTunnelProcess(
     private val process: Process,
     val connectionString: String,
+    private val askPassScript: Path? = null,
 ) : AutoCloseable {
     override fun close() {
         process.destroy()
         if (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
             process.destroyForcibly()
         }
+        askPassScript?.let(Files::deleteIfExists)
     }
 }

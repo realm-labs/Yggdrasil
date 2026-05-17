@@ -58,8 +58,15 @@
     <string name="connection_ssh_host">SSH host</string>
     <string name="connection_ssh_port">Port</string>
     <string name="connection_ssh_user">SSH user</string>
+    <string name="connection_ssh_auth_public_key">Public key</string>
+    <string name="connection_ssh_auth_password">Password</string>
     <string name="connection_identity_file">Identity file</string>
     <string name="connection_identity_placeholder">Optional, uses ssh agent by default</string>
+    <string name="connection_ssh_password">SSH password</string>
+    <string name="connection_ssh_password_placeholder">Stored in macOS Keychain</string>
+    <string name="connection_ssh_passphrase">Key passphrase</string>
+    <string name="connection_ssh_passphrase_placeholder">Optional, stored in macOS Keychain</string>
+    <string name="connection_ssh_keep_saved_secret">Leave blank to keep the saved secret</string>
 
     <string name="tree_title">Znode Explorer</string>
     <string name="tree_filter_placeholder">Filter znodes...</string>
@@ -314,6 +321,8 @@
     <string name="error_ssh_host_required">SSH host is required.</string>
     <string name="error_ssh_username_required">SSH username is required.</string>
     <string name="error_ssh_port_invalid">SSH port must be between 1 and 65535.</string>
+    <string name="error_ssh_password_required">SSH password is required.</string>
+    <string name="error_ssh_credential_storage_unavailable">SSH credential storage is not available.</string>
     <string name="error_invalid_zk_path">Invalid ZooKeeper path: %1$s</string>
     <string name="error_command_empty">Command cannot be empty.</string>
     <string name="error_unsupported_zk_command">Unsupported zk command: %1$s. Type help for supported commands.</string>
