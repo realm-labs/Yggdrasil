@@ -127,15 +127,21 @@ private fun startSshTunnel(
     val tunnel = requireNotNull(profile.sshTunnel)
     val credentialRef = requireNotNull(tunnel.credentialRef)
     readCredentialOrThrow(credentialRepository, credentialRef)
-    val endpoint = parseSingleZooKeeperEndpoint(profile.connectionString)
-    val localPort = findAvailableLocalPort()
-    val forwarding = "127.0.0.1:$localPort:${endpoint.host}:${endpoint.port}"
+    val connection = parseZooKeeperConnectionString(profile.connectionString)
+    val localEndpoints = connection.endpoints.map { endpoint ->
+        LocalZooKeeperEndpoint(
+            localPort = findAvailableLocalPort(excluding = emptySet()),
+            target = endpoint,
+        )
+    }.deduplicateLocalPorts()
     val askPassScripts = createCredentialAskPassScripts(credentialRef)
     val command = buildList {
         add("ssh")
         add("-N")
-        add("-L")
-        add(forwarding)
+        localEndpoints.forEach { endpoint ->
+            add("-L")
+            add("127.0.0.1:${endpoint.localPort}:${endpoint.target.host}:${endpoint.target.port}")
+        }
         add("-p")
         add(tunnel.port.toString())
         add("-o")
@@ -199,7 +205,7 @@ private fun startSshTunnel(
 
     return SshTunnelProcess(
         process = process,
-        connectionString = "127.0.0.1:$localPort",
+        connectionString = connection.toLocalConnectionString(localEndpoints),
         askPassScripts = askPassScripts,
     )
 }
@@ -215,26 +221,78 @@ private fun readCredentialOrThrow(
     }
 }
 
-private data class ZooKeeperEndpoint(
+internal data class ZooKeeperEndpoint(
     val host: String,
     val port: Int,
 )
 
-private fun parseSingleZooKeeperEndpoint(connectionString: String): ZooKeeperEndpoint {
-    require(!connectionString.contains(",")) {
-        "SSH tunnel currently supports a single ZooKeeper host:port connection string."
+internal data class ParsedZooKeeperConnectionString(
+    val endpoints: List<ZooKeeperEndpoint>,
+    val chroot: String?,
+)
+
+internal data class LocalZooKeeperEndpoint(
+    val localPort: Int,
+    val target: ZooKeeperEndpoint,
+)
+
+internal fun parseZooKeeperConnectionString(connectionString: String): ParsedZooKeeperConnectionString {
+    val trimmedConnectionString = connectionString.trim()
+    val endpointList = trimmedConnectionString.substringBefore("/")
+    val chroot = trimmedConnectionString
+        .substringAfter("/", missingDelimiterValue = "")
+        .takeIf { it.isNotBlank() }
+        ?.let { "/$it" }
+    val endpoints = endpointList
+        .split(",")
+        .map { rawEndpoint -> parseZooKeeperEndpoint(rawEndpoint.trim()) }
+    require(endpoints.isNotEmpty()) {
+        "SSH tunnel requires at least one ZooKeeper host:port endpoint."
     }
-    val endpoint = connectionString.substringBefore("/")
-    val port = endpoint.substringAfterLast(":", missingDelimiterValue = "").toIntOrNull()
-    val host = endpoint.substringBeforeLast(":", missingDelimiterValue = "")
-    require(host.isNotBlank() && port != null) {
+    return ParsedZooKeeperConnectionString(
+        endpoints = endpoints,
+        chroot = chroot,
+    )
+}
+
+private fun parseZooKeeperEndpoint(rawEndpoint: String): ZooKeeperEndpoint {
+    val port = rawEndpoint.substringAfterLast(":", missingDelimiterValue = "").toIntOrNull()
+    val host = rawEndpoint.substringBeforeLast(":", missingDelimiterValue = "")
+    require(host.isNotBlank() && port != null && port in 1..65535) {
         "SSH tunnel requires ZooKeeper connection string in host:port form."
     }
     return ZooKeeperEndpoint(host = host, port = port)
 }
 
-private fun findAvailableLocalPort(): Int =
-    ServerSocket(0).use { socket -> socket.localPort }
+internal fun ParsedZooKeeperConnectionString.toLocalConnectionString(
+    localEndpoints: List<LocalZooKeeperEndpoint>,
+): String {
+    require(localEndpoints.size == endpoints.size) {
+        "Local ZooKeeper endpoint count must match target endpoint count."
+    }
+    val connectString = localEndpoints.joinToString(",") { endpoint ->
+        "127.0.0.1:${endpoint.localPort}"
+    }
+    return connectString + chroot.orEmpty()
+}
+
+private fun List<LocalZooKeeperEndpoint>.deduplicateLocalPorts(): List<LocalZooKeeperEndpoint> {
+    val usedPorts = mutableSetOf<Int>()
+    return map { endpoint ->
+        var localPort = endpoint.localPort
+        while (!usedPorts.add(localPort)) {
+            localPort = findAvailableLocalPort(excluding = usedPorts)
+        }
+        endpoint.copy(localPort = localPort)
+    }
+}
+
+private fun findAvailableLocalPort(excluding: Set<Int>): Int {
+    while (true) {
+        val port = ServerSocket(0).use { socket -> socket.localPort }
+        if (port !in excluding) return port
+    }
+}
 
 private fun List<Path>.deleteIfExists() {
     forEach { path ->
