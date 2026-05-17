@@ -23,6 +23,13 @@ compose.desktop {
         mainClass = "io.github.realmlabs.yggdrasil.MainKt"
 
         nativeDistributions {
+            modules(
+                "java.management",
+                "java.naming",
+                "java.security.jgss",
+                "java.security.sasl",
+                "jdk.unsupported",
+            )
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Yggdrasil"
             packageVersion = appVersion.get()
