@@ -12,6 +12,7 @@
     <string name="common_create">创建</string>
     <string name="common_delete">删除</string>
     <string name="common_edit">编辑</string>
+    <string name="common_copy">复制</string>
     <string name="common_clear">清空</string>
     <string name="common_preview">预览</string>
     <string name="common_run">运行</string>
@@ -78,6 +79,7 @@
     <string name="node_valid_json">✓ JSON 有效</string>
     <string name="node_empty_data">（空数据）</string>
     <string name="node_invalid_json">JSON 无效</string>
+    <string name="node_copy_data">复制节点数据</string>
     <string name="node_truncated_chars">... 已截断 %1$d 个字符</string>
     <string name="node_truncated_bytes">... 已截断 %1$d 字节</string>
     <string name="node_truncated_chars_prefix">... 已截断 </string>

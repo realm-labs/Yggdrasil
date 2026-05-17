@@ -145,12 +145,12 @@ fun AppShell(
                     state = state,
                     onSelectPath = onSelectPath,
                     onRefreshSelectedPath = onRefreshSelectedPath,
-                    onCreateNode = { showCreateNodeDialog = true },
                     modifier = Modifier.width(316.dp).fillMaxHeight(),
                 )
                 DividerLine(vertical = true)
                 NodeDetailPane(
                     state = state,
+                    onCreateNode = { showCreateNodeDialog = true },
                     onUpdateNodeData = onUpdateNodeData,
                     onDeleteNode = { showDeleteNodeDialog = true },
                     onClearSelection = onClearSelection,
@@ -657,17 +657,24 @@ private sealed interface BreadcrumbPart {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun IconGlyphButton(
     label: String,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(ShellMetrics.IconButtonSize),
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            content()
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier.size(ShellMetrics.IconButtonSize),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                content()
+            }
         }
     }
 }

@@ -12,6 +12,7 @@
     <string name="common_create">Create</string>
     <string name="common_delete">Delete</string>
     <string name="common_edit">Edit</string>
+    <string name="common_copy">Copy</string>
     <string name="common_clear">Clear</string>
     <string name="common_preview">Preview</string>
     <string name="common_run">Run</string>
@@ -78,6 +79,7 @@
     <string name="node_valid_json">✓ Valid JSON</string>
     <string name="node_empty_data">(empty data)</string>
     <string name="node_invalid_json">Invalid JSON</string>
+    <string name="node_copy_data">Copy node data</string>
     <string name="node_truncated_chars">... truncated %1$d characters</string>
     <string name="node_truncated_bytes">... truncated %1$d bytes</string>
     <string name="node_truncated_chars_prefix">... truncated </string>

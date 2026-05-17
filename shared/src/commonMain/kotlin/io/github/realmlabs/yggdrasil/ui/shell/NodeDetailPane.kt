@@ -4,6 +4,9 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -11,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -23,6 +27,7 @@ import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ZNodeDetailState
 import io.github.realmlabs.yggdrasil.domain.model.ZNodeDataFormat
 import io.github.realmlabs.yggdrasil.domain.model.ZNodeDetail
+import io.github.realmlabs.yggdrasil.platform.copyPlainTextToClipboard
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.compose.resources.stringResource
@@ -31,6 +36,7 @@ import yggdrasil.shared.generated.resources.*
 @Composable
 fun NodeDetailPane(
     state: AppState,
+    onCreateNode: () -> Unit,
     onUpdateNodeData: (ByteArray, Int) -> Unit,
     onDeleteNode: () -> Unit,
     onClearSelection: () -> Unit,
@@ -56,6 +62,7 @@ fun NodeDetailPane(
             is ZNodeDetailState.Loaded -> NodeDataViewer(
                 detail = detailState.detail,
                 readOnly = state.isReadOnly,
+                onCreateNode = onCreateNode,
                 onDeleteNode = onDeleteNode,
                 onClearSelection = onClearSelection,
                 onUpdateNodeData = onUpdateNodeData,
@@ -73,6 +80,7 @@ fun NodeDetailPane(
 private fun NodeDataViewer(
     detail: ZNodeDetail,
     readOnly: Boolean,
+    onCreateNode: () -> Unit,
     onDeleteNode: () -> Unit,
     onClearSelection: () -> Unit,
     onUpdateNodeData: (ByteArray, Int) -> Unit,
@@ -110,6 +118,14 @@ private fun NodeDataViewer(
             truncatedBytesSuffix,
         )
     }
+    val jsonValidation = remember(selectedFormat, editing, editText, detail.path, detail.stat.version) {
+        if (selectedFormat != ZNodeDataFormat.Json) {
+            null
+        } else {
+            val jsonText = if (editing) editText else detail.data.decodeToString()
+            if (jsonText.isValidJsonDocument()) JsonValidation.Valid else JsonValidation.Invalid
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -123,6 +139,43 @@ private fun NodeDataViewer(
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+            NodeActionButton(
+                label = stringResource(strings.tree_create_znode),
+                icon = Icons.Outlined.Add,
+                enabled = !readOnly && !editing,
+                onClick = onCreateNode,
+            )
+            NodeActionButton(
+                label = stringResource(strings.node_copy_data),
+                icon = Icons.Outlined.ContentCopy,
+                enabled = true,
+                onClick = {
+                    copyPlainTextToClipboard(
+                        if (editing) {
+                            editText
+                        } else {
+                            detail.data.decodeToString()
+                        },
+                    )
+                },
+            )
+            NodeActionButton(
+                label = stringResource(strings.common_edit),
+                icon = Icons.Outlined.Edit,
+                enabled = !readOnly && !editing,
+                onClick = {
+                    selectedFormat = ZNodeDataFormat.Text
+                    editText = detail.data.toTextPreview()
+                    editing = true
+                },
+            )
+            NodeActionButton(
+                label = stringResource(strings.common_delete),
+                icon = Icons.Outlined.Delete,
+                enabled = !readOnly && !editing,
+                destructive = true,
+                onClick = onDeleteNode,
             )
             TextButton(onClick = onClearSelection) { Text(stringResource(strings.common_clear)) }
         }
@@ -181,11 +234,17 @@ private fun NodeDataViewer(
             ) {
                 Text("${detail.data.size.toDisplaySize()}   UTF-8", style = MaterialTheme.typography.labelMedium)
                 Text(
-                    text = if (selectedFormat == ZNodeDataFormat.Json && !renderedData.startsWith(invalidJson)) stringResource(
-                        strings.node_valid_json
-                    ) else "",
+                    text = when (jsonValidation) {
+                        JsonValidation.Valid -> stringResource(strings.node_valid_json)
+                        JsonValidation.Invalid -> stringResource(strings.node_invalid_json)
+                        null -> ""
+                    },
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (jsonValidation == JsonValidation.Invalid) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
                 )
                 Spacer(Modifier.weight(1f))
                 if (editing) {
@@ -205,36 +264,59 @@ private fun NodeDataViewer(
                         modifier = Modifier.height(ShellMetrics.ControlHeight),
                         shape = ShellMetrics.FieldShape,
                     ) { Text(stringResource(strings.common_cancel)) }
-                } else {
-                    OutlinedButton(
-                        onClick = {
-                            selectedFormat = ZNodeDataFormat.Text
-                            editText = detail.data.toTextPreview()
-                            editing = true
-                        },
-                        enabled = !readOnly,
-                        modifier = Modifier.height(ShellMetrics.ControlHeight),
-                        shape = ShellMetrics.FieldShape,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Edit,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(strings.common_edit))
-                    }
-                    OutlinedButton(
-                        onClick = onDeleteNode,
-                        enabled = !readOnly,
-                        modifier = Modifier.height(ShellMetrics.ControlHeight),
-                        shape = ShellMetrics.FieldShape,
-                    ) { Text(stringResource(strings.common_delete)) }
                 }
             }
         }
     }
 }
+
+private enum class JsonValidation {
+    Valid,
+    Invalid,
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NodeActionButton(
+    label: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    destructive: Boolean = false,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+    ) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.size(ShellMetrics.ControlHeight),
+            shape = ShellMetrics.FieldShape,
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = when {
+                    !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
+                    destructive -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.primary
+                },
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+private fun String.isValidJsonDocument(): Boolean =
+    try {
+        PrettyJson.parseToJsonElement(this)
+        true
+    } catch (_: Exception) {
+        false
+    }
 
 @Composable
 private fun NodeDataText(

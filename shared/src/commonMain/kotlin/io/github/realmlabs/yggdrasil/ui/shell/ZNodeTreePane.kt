@@ -4,7 +4,6 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,7 +27,6 @@ fun TreePane(
     state: AppState,
     onSelectPath: (ZNodePath) -> Unit,
     onRefreshSelectedPath: () -> Unit,
-    onCreateNode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val strings = Res.string
@@ -55,6 +53,7 @@ fun TreePane(
                 modifier = Modifier.weight(1f),
             )
             TreeToolbarIconButton(
+                label = stringResource(strings.tree_refresh_selected),
                 onClick = onRefreshSelectedPath,
                 enabled = state.selectedPath != null,
             ) {
@@ -62,16 +61,6 @@ fun TreePane(
                     icon = Icons.Outlined.Refresh,
                     contentDescription = stringResource(strings.tree_refresh_selected),
                     enabled = state.selectedPath != null,
-                )
-            }
-            TreeToolbarIconButton(
-                onClick = onCreateNode,
-                enabled = state.activeConnection != null && !state.isReadOnly,
-            ) {
-                TreeToolbarIcon(
-                    icon = Icons.Outlined.Add,
-                    contentDescription = stringResource(strings.tree_create_znode),
-                    enabled = state.activeConnection != null && !state.isReadOnly,
                 )
             }
         }
@@ -134,24 +123,32 @@ fun TreePane(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TreeToolbarIconButton(
+    label: String,
     onClick: () -> Unit,
     enabled: Boolean,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(ShellMetrics.ControlHeight),
-        shape = ShellMetrics.FieldShape,
-        contentPadding = PaddingValues(0.dp),
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-            content = content,
-        )
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.size(ShellMetrics.ControlHeight),
+            shape = ShellMetrics.FieldShape,
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+                content = content,
+            )
+        }
     }
 }
 
