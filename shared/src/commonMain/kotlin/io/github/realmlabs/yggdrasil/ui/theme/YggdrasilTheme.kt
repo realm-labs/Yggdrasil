@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import io.github.realmlabs.yggdrasil.application.state.ThemePreference
 
 private val LightColors = lightColorScheme(
     primary = Color(0xFF236A57),
@@ -30,8 +31,16 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun YggdrasilTheme(content: @Composable () -> Unit) {
-    val colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors
+fun YggdrasilTheme(
+    themePreference: ThemePreference = ThemePreference.System,
+    content: @Composable () -> Unit,
+) {
+    val darkTheme = when (themePreference) {
+        ThemePreference.System -> isSystemInDarkTheme()
+        ThemePreference.Light -> false
+        ThemePreference.Dark -> true
+    }
+    val colorScheme = if (darkTheme) DarkColors else LightColors
 
     MaterialTheme(
         colorScheme = colorScheme,

@@ -1,6 +1,7 @@
 package io.github.realmlabs.yggdrasil.application.state
 
 import io.github.realmlabs.yggdrasil.domain.model.*
+import kotlinx.serialization.Serializable
 
 
 sealed interface ConnectionRuntimeStatus {
@@ -89,3 +90,26 @@ enum class ThemePreference {
     Light,
     Dark,
 }
+
+enum class TerminalThemePreference {
+    Auto,
+    Light,
+    Dark,
+}
+
+@Serializable
+data class AppSettings(
+    val themePreference: ThemePreference = ThemePreference.System,
+    val startAtRoot: Boolean = true,
+    val autoWatchSelectedNode: Boolean = true,
+    val defaultSearchPath: Boolean = true,
+    val defaultSearchData: Boolean = true,
+    val inspectorExpandedByDefault: Boolean = true,
+    val embeddedTerminalEnabled: Boolean = true,
+    val terminalExpandedByDefault: Boolean = true,
+    val terminalFontSize: Int = 13,
+    val terminalThemePreference: TerminalThemePreference = TerminalThemePreference.Auto,
+    val terminalShowTimestamps: Boolean = true,
+    val clearTerminalOnConnectionChange: Boolean = false,
+    val requireDangerousConfirmation: Boolean = true,
+)

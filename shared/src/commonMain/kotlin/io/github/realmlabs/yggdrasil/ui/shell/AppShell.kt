@@ -9,16 +9,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.realmlabs.yggdrasil.application.state.AppState
-import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
-import io.github.realmlabs.yggdrasil.application.state.ZNodeDetailState
-import io.github.realmlabs.yggdrasil.application.state.ZkCliState
+import androidx.compose.ui.unit.sp
+import io.github.realmlabs.yggdrasil.application.state.*
 import io.github.realmlabs.yggdrasil.domain.model.*
 
 @Composable
@@ -45,6 +44,7 @@ fun AppShell(
     onCancelCompare: () -> Unit,
     onExecuteZkCli: (ZkCliCommandRequest) -> Unit,
     onClearSelection: () -> Unit,
+    onUpdateSettings: (AppSettings) -> Unit,
 ) {
     var showConnectionDialog by remember { mutableStateOf(false) }
     var showCreateNodeDialog by remember { mutableStateOf(false) }
@@ -56,7 +56,18 @@ fun AppShell(
     var terminalCommand by remember { mutableStateOf("") }
     var terminalEntries by remember { mutableStateOf<List<TerminalEntry>>(emptyList()) }
     var lastTerminalStateKey by remember { mutableStateOf("") }
-    var inspectorExpanded by remember { mutableStateOf(true) }
+    var inspectorExpanded by remember { mutableStateOf(state.settings.inspectorExpandedByDefault) }
+    var showSettings by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.settings.inspectorExpandedByDefault) {
+        inspectorExpanded = state.settings.inspectorExpandedByDefault
+    }
+
+    LaunchedEffect(state.activeConnectionId, state.settings.clearTerminalOnConnectionChange) {
+        if (state.settings.clearTerminalOnConnectionChange) {
+            terminalEntries = emptyList()
+        }
+    }
 
     LaunchedEffect(state.zkCliState) {
         when (val cliState = state.zkCliState) {
@@ -91,10 +102,17 @@ fun AppShell(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(Modifier.fillMaxSize()) {
+        if (showSettings) {
+            SettingsPage(
+                settings = state.settings,
+                onSettingsChange = onUpdateSettings,
+                onClose = { showSettings = false },
+            )
+        } else {
+            Column(Modifier.fillMaxSize()) {
             YggdrasilTopBar(
                 state = state,
-                onNewConnection = { showConnectionDialog = true },
+                onSettings = { showSettings = true },
                 onCommand = { showCommandDialog = true },
                 search = topSearch,
                 onSearchChange = { topSearch = it },
@@ -104,8 +122,8 @@ fun AppShell(
                         ZNodeSearchRequest(
                             rootPath = root,
                             query = topSearch,
-                            searchPath = true,
-                            searchData = true,
+                            searchPath = state.settings.defaultSearchPath,
+                            searchData = state.settings.defaultSearchData,
                         ),
                     )
                 },
@@ -137,19 +155,23 @@ fun AppShell(
                 )
             }
             DividerLine(vertical = false)
-            ZkCliTerminal(
-                state = state,
-                entries = terminalEntries,
-                command = terminalCommand,
-                onCommandChange = { terminalCommand = it },
-                onExecute = {
-                    if (terminalCommand.isNotBlank()) {
-                        onExecuteZkCli(ZkCliCommandRequest(terminalCommand))
-                        terminalCommand = ""
-                    }
-                },
-                onClear = { terminalEntries = emptyList() },
-            )
+                if (state.settings.embeddedTerminalEnabled) {
+                    ZkCliTerminal(
+                        state = state,
+                        settings = state.settings,
+                        entries = terminalEntries,
+                        command = terminalCommand,
+                        onCommandChange = { terminalCommand = it },
+                        onExecute = {
+                            if (terminalCommand.isNotBlank()) {
+                                onExecuteZkCli(ZkCliCommandRequest(terminalCommand))
+                                terminalCommand = ""
+                            }
+                        },
+                        onClear = { terminalEntries = emptyList() },
+                    )
+                }
+            }
         }
     }
 
@@ -188,6 +210,7 @@ fun AppShell(
     if (showDeleteNodeDialog) {
         DeleteNodeDialog(
             state = state,
+            requireDangerousConfirmation = state.settings.requireDangerousConfirmation,
             onPreview = onPreviewDeleteNode,
             onDelete = { confirmation ->
                 onDeletePreviewedNode(confirmation)
@@ -240,7 +263,7 @@ private fun YggdrasilTopBar(
     onSearchChange: (String) -> Unit,
     onRunSearch: () -> Unit,
     onSelectConnection: (ConnectionId) -> Unit,
-    onNewConnection: () -> Unit,
+    onSettings: () -> Unit,
     onCommand: () -> Unit,
 ) {
     Row(
@@ -290,7 +313,7 @@ private fun YggdrasilTopBar(
             Text("⌘ Command")
         }
         IconGlyphButton(label = "Search", onClick = onRunSearch) { RefreshGlyph() }
-        IconGlyphButton(label = "Settings", onClick = onNewConnection) { GearGlyph() }
+        IconGlyphButton(label = "Settings", onClick = onSettings) { GearGlyph() }
         Box(
             modifier = Modifier
                 .size(38.dp)
@@ -516,13 +539,31 @@ private fun GearGlyph() {
 @Composable
 private fun ZkCliTerminal(
     state: AppState,
+    settings: AppSettings,
     entries: List<TerminalEntry>,
     command: String,
     onCommandChange: (String) -> Unit,
     onExecute: () -> Unit,
     onClear: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(true) }
+    var expanded by remember { mutableStateOf(settings.terminalExpandedByDefault) }
+    LaunchedEffect(settings.terminalExpandedByDefault) {
+        expanded = settings.terminalExpandedByDefault
+    }
+    val terminalBackground = when (settings.terminalThemePreference) {
+        TerminalThemePreference.Auto -> MaterialTheme.colorScheme.surface
+        TerminalThemePreference.Light -> Color(0xFFFBFCFC)
+        TerminalThemePreference.Dark -> Color(0xFF151716)
+    }
+    val terminalTextColor = when (settings.terminalThemePreference) {
+        TerminalThemePreference.Dark -> Color(0xFFE8ECEA)
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val terminalMutedColor = when (settings.terminalThemePreference) {
+        TerminalThemePreference.Dark -> Color(0xFF9BA8A3)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val terminalTextStyle = MaterialTheme.typography.bodySmall.copy(fontSize = settings.terminalFontSize.sp)
 
     Column(
         modifier = Modifier
@@ -569,6 +610,7 @@ private fun ZkCliTerminal(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .background(terminalBackground)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -576,32 +618,38 @@ private fun ZkCliTerminal(
             if (entries.isEmpty()) {
                 Text(
                     text = "No zkCli commands yet.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = terminalTextStyle,
+                    color = terminalMutedColor,
                     fontFamily = FontFamily.Monospace,
                 )
             }
             entries.takeLast(12).forEachIndexed { index, entry ->
                 Text(
-                    text = "09:${
-                        (15 + index).toString().padStart(2, '0')
-                    }:21   [zk: ${state.activeConnection?.connectionString ?: "-"}] ${entry.command}",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = buildString {
+                        if (settings.terminalShowTimestamps) {
+                            append("09:")
+                            append((15 + index).toString().padStart(2, '0'))
+                            append(":21   ")
+                        }
+                        append("[zk: ${state.activeConnection?.connectionString ?: "-"}] ${entry.command}")
+                    },
+                    style = terminalTextStyle,
                     fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = terminalMutedColor,
                 )
                 Text(
                     text = entry.output,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = terminalTextStyle,
                     fontFamily = FontFamily.Monospace,
-                    color = if (entry.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    color = if (entry.isError) MaterialTheme.colorScheme.error else terminalTextColor,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().background(terminalBackground)
+                .padding(horizontal = 18.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -612,10 +660,13 @@ private fun ZkCliTerminal(
                 modifier = Modifier.weight(1f),
                 monospace = true,
             )
-            OutlinedButton(
-                onClick = {},
-                modifier = Modifier.height(ShellMetrics.ControlHeight),
-                shape = ShellMetrics.FieldShape,
+            Box(
+                modifier = Modifier
+                    .height(ShellMetrics.ControlHeight)
+                    .clip(ShellMetrics.FieldShape)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), ShellMetrics.FieldShape)
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 Text("Ln 4, Col 1")
             }

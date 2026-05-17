@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import io.github.realmlabs.yggdrasil.application.workflow.ZNodeWorkflowService
 import io.github.realmlabs.yggdrasil.application.workflow.ZkCliCommandService
 import io.github.realmlabs.yggdrasil.domain.model.*
+import io.github.realmlabs.yggdrasil.domain.repository.AppSettingsRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ConnectionProfileRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ZNodeRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ZooKeeperConnectionTester
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlin.random.Random
 
 class YggdrasilStateHolder(
+    private val appSettingsRepository: AppSettingsRepository? = null,
     private val connectionProfileRepository: ConnectionProfileRepository? = null,
     private val zooKeeperConnectionTester: ZooKeeperConnectionTester? = null,
     private val zNodeRepository: ZNodeRepository? = null,
@@ -20,6 +22,19 @@ class YggdrasilStateHolder(
 ) {
     var state by mutableStateOf(initialState)
         private set
+
+    suspend fun loadSettings() {
+        val repository = appSettingsRepository ?: return
+        when (val result = repository.loadSettings()) {
+            is OperationResult.Success -> {
+                state = state.copy(settings = result.value)
+            }
+
+            is OperationResult.Failure -> {
+                state = state.copy(statusMessage = result.error.message)
+            }
+        }
+    }
 
     suspend fun loadConnections() {
         val repository = connectionProfileRepository ?: return
@@ -92,7 +107,9 @@ class YggdrasilStateHolder(
             zkCliState = ZkCliState.Idle,
             statusMessage = "Selected ${connection.name}",
         )
-        selectPath(ZNodePath.Root)
+        if (state.settings.startAtRoot) {
+            selectPath(ZNodePath.Root)
+        }
     }
 
     suspend fun createConnection(draft: ConnectionProfileDraft) {
@@ -432,11 +449,11 @@ class YggdrasilStateHolder(
         }
     }
 
-    suspend fun deletePreviewedNode(confirmation: String) {
+    suspend fun deletePreviewedNode(confirmation: String, requireConfirmation: Boolean = true) {
         val repository = zNodeRepository ?: return
         val profile = requireWritableProfile() ?: return
         val preview = (state.deletePreview as? DeletePreviewState.Loaded)?.preview ?: return
-        if (preview.requiresFullPathConfirmation && confirmation != preview.rootPath.value) {
+        if (requireConfirmation && preview.requiresFullPathConfirmation && confirmation != preview.rootPath.value) {
             reportError(AppError.Validation("Type ${preview.rootPath} to confirm deletion."))
             return
         }
@@ -728,6 +745,15 @@ class YggdrasilStateHolder(
 
     fun reportError(error: AppError) {
         state = state.copy(statusMessage = error.message)
+    }
+
+    suspend fun updateSettings(settings: AppSettings) {
+        state = state.copy(settings = settings, statusMessage = "Settings updated")
+        val repository = appSettingsRepository ?: return
+        when (val result = repository.saveSettings(settings)) {
+            is OperationResult.Success -> Unit
+            is OperationResult.Failure -> state = state.copy(statusMessage = result.error.message)
+        }
     }
 
     private fun requireWritableProfile(): ConnectionProfile? {

@@ -1,27 +1,19 @@
 package io.github.realmlabs.yggdrasil.ui.shell
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.realmlabs.yggdrasil.application.state.*
+import io.github.realmlabs.yggdrasil.application.state.AppState
+import io.github.realmlabs.yggdrasil.application.state.DeletePreviewState
 import io.github.realmlabs.yggdrasil.domain.model.*
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 
 @Composable
 fun CreateNodeDialog(
@@ -124,6 +116,7 @@ fun CreateNodeDialog(
 @Composable
 fun DeleteNodeDialog(
     state: AppState,
+    requireDangerousConfirmation: Boolean,
     onPreview: (Boolean) -> Unit,
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -132,7 +125,7 @@ fun DeleteNodeDialog(
     var recursive by remember(selectedPath) { mutableStateOf(false) }
     var confirmation by remember(selectedPath) { mutableStateOf("") }
     val preview = state.deletePreview as? DeletePreviewState.Loaded
-    val requiresConfirmation = preview?.preview?.requiresFullPathConfirmation == true
+    val requiresConfirmation = requireDangerousConfirmation && preview?.preview?.requiresFullPathConfirmation == true
     val canDelete = preview != null && (!requiresConfirmation || confirmation == preview.preview.rootPath.value)
 
     AlertDialog(
@@ -203,7 +196,7 @@ fun DeleteNodeDialog(
                                 )
                             }
                         }
-                        if (previewState.preview.requiresFullPathConfirmation) {
+                        if (requireDangerousConfirmation && previewState.preview.requiresFullPathConfirmation) {
                             TextField(
                                 value = confirmation,
                                 onValueChange = { confirmation = it },
@@ -404,4 +397,3 @@ private fun PermissionToggle(
         )
     }
 }
-

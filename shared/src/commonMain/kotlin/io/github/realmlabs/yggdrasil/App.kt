@@ -17,6 +17,7 @@ fun App() {
     val services = remember { createYggdrasilServices() }
     val stateHolder = remember {
         YggdrasilStateHolder(
+            appSettingsRepository = services.appSettingsRepository,
             connectionProfileRepository = services.connectionProfileRepository,
             zooKeeperConnectionTester = services.zooKeeperConnectionTester,
             zNodeRepository = services.zNodeRepository,
@@ -27,6 +28,7 @@ fun App() {
     var compareJob by remember { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(stateHolder) {
+        stateHolder.loadSettings()
         stateHolder.loadConnections()
     }
 
@@ -34,7 +36,9 @@ fun App() {
         stateHolder,
         stateHolder.state.activeConnectionId,
         stateHolder.state.watchState.watchedPath,
+        stateHolder.state.settings.autoWatchSelectedNode,
     ) {
+        if (!stateHolder.state.settings.autoWatchSelectedNode) return@LaunchedEffect
         stateHolder.watchSelectedPath()
             ?.catch { error ->
                 stateHolder.reportWatchError(
@@ -49,7 +53,7 @@ fun App() {
             }
     }
 
-    YggdrasilTheme {
+    YggdrasilTheme(themePreference = stateHolder.state.settings.themePreference) {
         AppShell(
             state = stateHolder.state,
             onSelectConnection = { id -> coroutineScope.launch { stateHolder.selectConnection(id) } },
@@ -67,7 +71,12 @@ fun App() {
                 coroutineScope.launch { stateHolder.previewDeleteSelectedNode(recursive) }
             },
             onDeletePreviewedNode = { confirmation ->
-                coroutineScope.launch { stateHolder.deletePreviewedNode(confirmation) }
+                coroutineScope.launch {
+                    stateHolder.deletePreviewedNode(
+                        confirmation = confirmation,
+                        requireConfirmation = stateHolder.state.settings.requireDangerousConfirmation,
+                    )
+                }
             },
             onClearDeletePreview = stateHolder::clearDeletePreview,
             onUpdateAcl = { acl, expectedAversion ->
@@ -99,6 +108,9 @@ fun App() {
                 coroutineScope.launch { stateHolder.executeZkCliCommand(request) }
             },
             onClearSelection = stateHolder::clearSelection,
+            onUpdateSettings = { settings ->
+                coroutineScope.launch { stateHolder.updateSettings(settings) }
+            },
         )
     }
 }
