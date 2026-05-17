@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -89,6 +90,8 @@ private fun NodeDataViewer(
     onUpdateNodeData: (ByteArray, Int) -> Unit,
 ) {
     val strings = Res.string
+    val dataVerticalScrollState = rememberScrollState()
+    val codeTextStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
     var selectedFormat by remember(detail.path, detail.stat.version) {
         mutableStateOf(detail.detectedFormat.toViewFormat())
     }
@@ -255,39 +258,28 @@ private fun NodeDataViewer(
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f), ShellMetrics.CardShape)
                 .background(MaterialTheme.colorScheme.surface),
         ) {
-            Row(
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(dataVerticalScrollState),
             ) {
-                Text(
-                    text = displayedData.lineSequence().mapIndexed { index, _ -> (index + 1).toString() }
-                        .joinToString("\n"),
-                    modifier = Modifier
-                        .width(50.dp)
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-                        .padding(top = 12.dp, end = 12.dp),
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.End,
-                )
-                Box(Modifier.weight(1f).padding(12.dp)) {
-                    if (editing) {
+                if (editing) {
+                    Box(Modifier.fillMaxWidth().padding(12.dp)) {
                         TextField(
                             value = editText,
                             onValueChange = { editText = it },
                             modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                        )
-                    } else {
-                        NodeDataText(
-                            renderedData = displayedData,
-                            format = selectedFormat,
-                            invalidJsonPrefix = invalidJson
+                            textStyle = codeTextStyle,
                         )
                     }
+                } else {
+                    NodeDataLines(
+                        renderedData = displayedData,
+                        format = selectedFormat,
+                        invalidJsonPrefix = invalidJson,
+                        textStyle = codeTextStyle,
+                    )
                 }
             }
             DividerLine(vertical = false)
@@ -343,6 +335,47 @@ private fun NodeDataViewer(
                         modifier = Modifier.height(ShellMetrics.ControlHeight),
                         shape = ShellMetrics.FieldShape,
                     ) { Text(stringResource(strings.common_cancel)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NodeDataLines(
+    renderedData: String,
+    format: ZNodeDataFormat,
+    invalidJsonPrefix: String,
+    textStyle: TextStyle,
+) {
+    SelectionContainer {
+        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+            renderedData.lines().forEachIndexed { index, line ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(50.dp)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                            .padding(end = 12.dp),
+                        contentAlignment = Alignment.TopEnd,
+                    ) {
+                        Text(
+                            text = (index + 1).toString(),
+                            style = textStyle,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.End,
+                        )
+                    }
+                    NodeDataText(
+                        renderedData = line.ifEmpty { " " },
+                        format = format,
+                        invalidJsonPrefix = invalidJsonPrefix,
+                        textStyle = textStyle,
+                        modifier = Modifier.weight(1f).padding(start = 12.dp, end = 12.dp),
+                    )
                 }
             }
         }
@@ -406,30 +439,31 @@ private fun NodeDataText(
     renderedData: String,
     format: ZNodeDataFormat,
     invalidJsonPrefix: String,
+    textStyle: TextStyle,
+    modifier: Modifier = Modifier,
 ) {
-    val textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
-    SelectionContainer {
-        if (format == ZNodeDataFormat.Json && !renderedData.startsWith(invalidJsonPrefix)) {
-            Text(
-                text = highlightJson(
-                    json = renderedData,
-                    colors = JsonSyntaxColors(
-                        punctuation = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
-                        key = MaterialTheme.colorScheme.primary,
-                        string = Color(0xFF2E7D32),
-                        number = Color(0xFF8E24AA),
-                        literal = Color(0xFFC2410C),
-                    ),
+    if (format == ZNodeDataFormat.Json && !renderedData.startsWith(invalidJsonPrefix)) {
+        Text(
+            text = highlightJson(
+                json = renderedData,
+                colors = JsonSyntaxColors(
+                    punctuation = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+                    key = MaterialTheme.colorScheme.primary,
+                    string = Color(0xFF2E7D32),
+                    number = Color(0xFF8E24AA),
+                    literal = Color(0xFFC2410C),
                 ),
-                style = textStyle,
-            )
-        } else {
-            Text(
-                text = renderedData,
-                style = textStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            ),
+            modifier = modifier,
+            style = textStyle,
+        )
+    } else {
+        Text(
+            text = renderedData,
+            modifier = modifier,
+            style = textStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
