@@ -1,5 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
+val appVersion = providers.gradleProperty("APP_VERSION").orElse("1.0.0")
+
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.composeMultiplatform)
@@ -22,8 +24,16 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "io.github.realmlabs.yggdrasil"
-            packageVersion = "1.0.0"
+            packageName = "Yggdrasil"
+            packageVersion = appVersion.get()
+            description = "A desktop ZooKeeper client"
+            vendor = "Realm Labs"
+            copyright = "Copyright (c) Realm Labs"
+
+            linux {
+                packageName = "yggdrasil"
+                debMaintainer = "realm-labs@users.noreply.github.com"
+            }
         }
     }
 }
