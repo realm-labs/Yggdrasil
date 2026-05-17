@@ -1,12 +1,9 @@
 package io.github.realmlabs.yggdrasil.ui.shell
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,7 +12,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -250,7 +247,14 @@ private fun SettingsHeader(
                 onValueChange = onSearchChange,
                 placeholder = "Search settings...",
                 modifier = Modifier.width(360.dp),
-                leading = { SettingsSearchGlyph() },
+                leading = {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
             )
             OutlinedButton(
                 onClick = onClose,
@@ -294,11 +298,11 @@ private fun SettingsSidebar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text(
-                    text = item.icon,
+                Icon(
+                    imageVector = item.icon,
+                    contentDescription = null,
                     modifier = Modifier.width(28.dp),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = item.title,
@@ -330,7 +334,12 @@ private fun SettingsContentHeader(section: SettingsSection) {
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), ShellMetrics.FieldShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text(section.icon, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                imageVector = section.icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
         }
         Column {
             Text(section.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
@@ -538,38 +547,43 @@ private fun SettingsBrandMark() {
     }
 }
 
-@Composable
-private fun SettingsSearchGlyph() {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Canvas(Modifier.size(16.dp)) {
-        drawCircle(
-            color = color,
-            radius = size.minDimension * 0.32f,
-            center = Offset(size.width * 0.44f, size.height * 0.42f),
-            style = Stroke(width = 1.7.dp.toPx(), cap = StrokeCap.Round),
-        )
-        drawLine(
-            color = color,
-            start = Offset(size.width * 0.67f, size.height * 0.66f),
-            end = Offset(size.width * 0.90f, size.height * 0.90f),
-            strokeWidth = 1.7.dp.toPx(),
-            cap = StrokeCap.Round,
-        )
-    }
-}
-
 private enum class SettingsSection(
-    val icon: String,
+    val icon: ImageVector,
     val title: String,
     val description: String,
     private val keywords: List<String>,
 ) {
-    General("⚙", "General", "Startup behavior and top-level defaults.", listOf("startup", "search", "inspector")),
-    Appearance("◌", "Appearance", "Application color theme.", listOf("theme", "light", "dark")),
-    Explorer("▭", "Znode Explorer", "Tree, inspector, and watch behavior.", listOf("znode", "tree", "watch", "inspector")),
-    Terminal(">_", "zkCli & Terminal", "Embedded zkCli behavior and terminal display.", listOf("zkcli", "terminal", "font", "timestamp")),
-    Safety("!", "Safety", "Confirmation behavior for destructive operations.", listOf("delete", "dangerous", "confirmation", "acl")),
-    Shortcuts("⌘", "Shortcuts", "Currently available keyboard and toolbar actions.", listOf("keyboard", "shortcut", "command")),
+    General(
+        Icons.Outlined.Settings,
+        "General",
+        "Startup behavior and top-level defaults.",
+        listOf("startup", "search", "inspector")
+    ),
+    Appearance(Icons.Outlined.Palette, "Appearance", "Application color theme.", listOf("theme", "light", "dark")),
+    Explorer(
+        Icons.Outlined.Storage,
+        "Znode Explorer",
+        "Tree, inspector, and watch behavior.",
+        listOf("znode", "tree", "watch", "inspector")
+    ),
+    Terminal(
+        Icons.Outlined.Code,
+        "zkCli & Terminal",
+        "Embedded zkCli behavior and terminal display.",
+        listOf("zkcli", "terminal", "font", "timestamp")
+    ),
+    Safety(
+        Icons.Outlined.Security,
+        "Safety",
+        "Confirmation behavior for destructive operations.",
+        listOf("delete", "dangerous", "confirmation", "acl")
+    ),
+    Shortcuts(
+        Icons.Outlined.Keyboard,
+        "Shortcuts",
+        "Currently available keyboard and toolbar actions.",
+        listOf("keyboard", "shortcut", "command")
+    ),
     ;
 
     fun matches(query: String): Boolean {
