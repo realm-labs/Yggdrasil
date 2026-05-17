@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.realmlabs.yggdrasil.application.state.*
 import io.github.realmlabs.yggdrasil.domain.model.*
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 @Composable
 fun AppShell(
@@ -58,6 +60,11 @@ fun AppShell(
     var lastTerminalStateKey by remember { mutableStateOf("") }
     var inspectorExpanded by remember { mutableStateOf(state.settings.inspectorExpandedByDefault) }
     var showSettings by remember { mutableStateOf(false) }
+    val terminalSuccessOutput = when (val cliState = state.zkCliState) {
+        is ZkCliState.Loaded -> localizedZkCliOutput(cliState.result.output)
+        else -> null
+    }
+    val terminalErrorOutput = (state.zkCliState as? ZkCliState.Failed)?.error?.localized()
 
     LaunchedEffect(state.settings.inspectorExpandedByDefault) {
         inspectorExpanded = state.settings.inspectorExpandedByDefault
@@ -69,14 +76,14 @@ fun AppShell(
         }
     }
 
-    LaunchedEffect(state.zkCliState) {
+    LaunchedEffect(state.zkCliState, terminalSuccessOutput, terminalErrorOutput) {
         when (val cliState = state.zkCliState) {
             is ZkCliState.Loaded -> {
                 val key = "ok:${cliState.result.commandLine}:${cliState.result.output.hashCode()}"
                 if (key != lastTerminalStateKey) {
                     terminalEntries = terminalEntries + TerminalEntry(
                         command = cliState.result.commandLine,
-                        output = cliState.result.output,
+                        output = terminalSuccessOutput ?: cliState.result.output,
                     )
                     lastTerminalStateKey = key
                 }
@@ -87,7 +94,7 @@ fun AppShell(
                 if (key != lastTerminalStateKey) {
                     terminalEntries = terminalEntries + TerminalEntry(
                         command = cliState.request.commandLine,
-                        output = cliState.error.message,
+                        output = terminalErrorOutput ?: cliState.error.message,
                         isError = true,
                     )
                     lastTerminalStateKey = key
@@ -274,6 +281,7 @@ private fun YggdrasilTopBar(
     onSettings: () -> Unit,
     onCommand: () -> Unit,
 ) {
+    val strings = Res.string
     Column(
         modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface),
     ) {
@@ -302,7 +310,7 @@ private fun YggdrasilTopBar(
             ShellTextInput(
                 value = search,
                 onValueChange = onSearchChange,
-                placeholder = "Search nodes & data",
+                placeholder = stringResource(strings.top_search_placeholder),
                 modifier = Modifier.width(340.dp),
                 leading = {
                     Icon(
@@ -326,20 +334,20 @@ private fun YggdrasilTopBar(
                 shape = ShellMetrics.FieldShape,
                 contentPadding = PaddingValues(horizontal = 16.dp),
             ) {
-                Text("⌘ Command")
+                Text(stringResource(strings.command_button))
             }
-            IconGlyphButton(label = "Search", onClick = onRunSearch) {
+            IconGlyphButton(label = stringResource(strings.common_search), onClick = onRunSearch) {
                 Icon(
                     imageVector = Icons.Outlined.Refresh,
-                    contentDescription = "Search",
+                    contentDescription = stringResource(strings.common_search),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(24.dp),
                 )
             }
-            IconGlyphButton(label = "Settings", onClick = onSettings) {
+            IconGlyphButton(label = stringResource(strings.common_settings), onClick = onSettings) {
                 Icon(
                     imageVector = Icons.Outlined.Settings,
-                    contentDescription = "Settings",
+                    contentDescription = stringResource(strings.common_settings),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(24.dp),
                 )
@@ -370,6 +378,7 @@ private fun ConnectionStatusPill(
     onDeleteConnection: (ConnectionId) -> Unit,
     onTestConnection: (ConnectionId) -> Unit,
 ) {
+    val strings = Res.string
     var expanded by remember { mutableStateOf(false) }
     val connection = state.activeConnection
     val status = connection?.let { state.connectionStatuses[it.id] } ?: ConnectionRuntimeStatus.Disconnected
@@ -387,7 +396,7 @@ private fun ConnectionStatusPill(
         ) {
             StatusDot(status)
             Text(
-                text = connection?.name ?: "No connection",
+                text = connection?.name ?: stringResource(strings.connection_none),
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -420,7 +429,7 @@ private fun ConnectionStatusPill(
         ) {
             if (state.connections.isEmpty()) {
                 Text(
-                    text = "No saved connections",
+                    text = stringResource(strings.connection_none_saved),
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -472,7 +481,7 @@ private fun ConnectionStatusPill(
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    text = "Add connection",
+                    text = stringResource(strings.connection_add),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -493,6 +502,7 @@ private fun ConnectionMenuRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val strings = Res.string
     val background = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent
     Row(
         modifier = Modifier
@@ -516,7 +526,11 @@ private fun ConnectionMenuRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = if (profile.mode == ConnectionMode.ReadWrite) "Read-write" else "Read-only",
+                    text = if (profile.mode == ConnectionMode.ReadWrite) {
+                        stringResource(strings.mode_read_write)
+                    } else {
+                        stringResource(strings.mode_read_only)
+                    },
                     modifier = Modifier
                         .clip(ShellMetrics.TreeRowShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.70f))
@@ -535,18 +549,22 @@ private fun ConnectionMenuRow(
             )
         }
         ConnectionMenuActionButton(
-            label = if (status == ConnectionRuntimeStatus.Connecting) "Testing connection" else "Test connection",
+            label = if (status == ConnectionRuntimeStatus.Connecting) {
+                stringResource(strings.connection_testing)
+            } else {
+                stringResource(strings.connection_test)
+            },
             icon = Icons.Outlined.Refresh,
             enabled = status != ConnectionRuntimeStatus.Connecting,
             onClick = onTest,
         )
         ConnectionMenuActionButton(
-            label = "Edit connection",
+            label = stringResource(strings.connection_edit),
             icon = Icons.Outlined.Edit,
             onClick = onEdit,
         )
         ConnectionMenuActionButton(
-            label = "Delete connection",
+            label = stringResource(strings.connection_delete),
             icon = Icons.Outlined.Delete,
             destructive = true,
             onClick = onDelete,
@@ -589,7 +607,8 @@ private fun ConnectionMenuActionButton(
 
 @Composable
 private fun ModeStatusPill(state: AppState) {
-    EnvironmentPill(text = if (state.isReadOnly) "Read-only" else "Read-write")
+    val strings = Res.string
+    EnvironmentPill(text = if (state.isReadOnly) stringResource(strings.mode_read_only) else stringResource(strings.mode_read_write))
 }
 
 @Composable
@@ -663,6 +682,7 @@ private fun ZkCliTerminal(
     onExecute: () -> Unit,
     onClear: () -> Unit,
 ) {
+    val strings = Res.string
     var expanded by remember { mutableStateOf(settings.terminalExpandedByDefault) }
     LaunchedEffect(settings.terminalExpandedByDefault) {
         expanded = settings.terminalExpandedByDefault
@@ -708,7 +728,11 @@ private fun ZkCliTerminal(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("zkCli Terminal", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(strings.terminal_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium
+                )
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
                     contentDescription = null,
@@ -718,7 +742,7 @@ private fun ZkCliTerminal(
             }
             Spacer(Modifier.weight(1f))
             if (expanded) {
-                TextButton(onClick = onClear) { Text("Clear") }
+                TextButton(onClick = onClear) { Text(stringResource(strings.common_clear)) }
             }
             IconButton(
                 onClick = { expanded = !expanded },
@@ -726,7 +750,9 @@ private fun ZkCliTerminal(
             ) {
                 Icon(
                     imageVector = if (expanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = if (expanded) "Collapse terminal" else "Expand terminal",
+                    contentDescription = if (expanded) stringResource(strings.terminal_collapse) else stringResource(
+                        strings.terminal_expand
+                    ),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
@@ -746,7 +772,7 @@ private fun ZkCliTerminal(
         ) {
             if (entries.isEmpty()) {
                 Text(
-                    text = "No zkCli commands yet.",
+                    text = stringResource(strings.terminal_empty),
                     style = terminalTextStyle,
                     color = terminalMutedColor,
                     fontFamily = FontFamily.Monospace,
@@ -785,7 +811,7 @@ private fun ZkCliTerminal(
             ShellTextInput(
                 value = command,
                 onValueChange = onCommandChange,
-                placeholder = "Enter zkCli command...",
+                placeholder = stringResource(strings.terminal_placeholder),
                 modifier = Modifier.weight(1f),
                 monospace = true,
             )
@@ -797,7 +823,7 @@ private fun ZkCliTerminal(
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Ln 4, Col 1")
+                Text(stringResource(strings.terminal_cursor))
             }
             Button(
                 onClick = onExecute,
@@ -805,7 +831,7 @@ private fun ZkCliTerminal(
                 modifier = Modifier.height(ShellMetrics.ControlHeight),
                 shape = ShellMetrics.FieldShape,
             ) {
-                Text("Execute  ⌘↵")
+                Text(stringResource(strings.terminal_execute))
             }
         }
     }

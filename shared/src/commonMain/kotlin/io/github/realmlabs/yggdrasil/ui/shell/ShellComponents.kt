@@ -21,6 +21,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 object ShellMetrics {
     val ControlHeight = 40.dp
@@ -96,6 +98,7 @@ fun TopBar(
     onNewConnection: () -> Unit,
     onCommand: () -> Unit,
 ) {
+    val strings = Res.string
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -110,16 +113,16 @@ fun TopBar(
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
         )
-        EnvironmentPill(text = state.activeConnection?.name ?: "No connection")
+        EnvironmentPill(text = state.activeConnection?.name ?: stringResource(strings.connection_none))
         if (state.isReadOnly) {
-            EnvironmentPill(text = "Read only")
+            EnvironmentPill(text = stringResource(strings.mode_read_only_spaced))
         }
         Spacer(Modifier.weight(1f))
         OutlinedButton(onClick = onCommand) {
-            Text("Command")
+            Text(stringResource(strings.command_title))
         }
         Button(onClick = onNewConnection) {
-            Text("New connection")
+            Text(stringResource(strings.connection_new_title))
         }
     }
 }
@@ -201,6 +204,7 @@ fun EmptyPanelMessage(
 
 @Composable
 fun StatusBar(state: AppState) {
+    val strings = Res.string
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -210,7 +214,7 @@ fun StatusBar(state: AppState) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = state.statusMessage,
+            text = state.statusMessage.localized(),
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -218,7 +222,7 @@ fun StatusBar(state: AppState) {
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = "Idle",
+            text = stringResource(strings.common_idle),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

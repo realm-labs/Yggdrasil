@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ZNodeChildrenState
 import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 @Composable
 fun TreePane(
@@ -29,6 +31,7 @@ fun TreePane(
     onCreateNode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = Res.string
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface)
@@ -37,7 +40,7 @@ fun TreePane(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Znode Explorer",
+                text = stringResource(strings.tree_title),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -48,7 +51,7 @@ fun TreePane(
             ShellTextInput(
                 value = filter,
                 onValueChange = { filter = it },
-                placeholder = "Filter znodes...",
+                placeholder = stringResource(strings.tree_filter_placeholder),
                 modifier = Modifier.weight(1f),
             )
             TreeToolbarIconButton(
@@ -57,7 +60,7 @@ fun TreePane(
             ) {
                 TreeToolbarIcon(
                     icon = Icons.Outlined.Refresh,
-                    contentDescription = "Refresh selected znode",
+                    contentDescription = stringResource(strings.tree_refresh_selected),
                     enabled = state.selectedPath != null,
                 )
             }
@@ -67,7 +70,7 @@ fun TreePane(
             ) {
                 TreeToolbarIcon(
                     icon = Icons.Outlined.Add,
-                    contentDescription = "Create znode",
+                    contentDescription = stringResource(strings.tree_create_znode),
                     enabled = state.activeConnection != null && !state.isReadOnly,
                 )
             }
@@ -75,8 +78,8 @@ fun TreePane(
         val activeConnection = state.activeConnection
         if (activeConnection == null) {
             EmptyPanelMessage(
-                title = "No active connection",
-                body = "Select a saved connection before loading the znode tree.",
+                title = stringResource(strings.tree_no_active_connection_title),
+                body = stringResource(strings.tree_no_active_connection_body),
             )
         } else {
             var expandedPaths by remember(state.activeConnectionId) {
@@ -180,24 +183,25 @@ private fun TreeChildren(
     onSelectPath: (ZNodePath) -> Unit,
     onTogglePath: (ZNodePath, Boolean, ZNodeChildrenState?) -> Unit,
 ) {
+    val strings = Res.string
     if (parent !in expandedPaths) return
 
     when (val childrenState = state.znodeChildren[parent]) {
         null,
         ZNodeChildrenState.Unloaded -> if (parent == ZNodePath.Root) {
             TreeStateMessage(
-                text = "Loading root children",
+                text = stringResource(strings.tree_loading_root_children),
                 depth = depth,
             )
         }
 
         ZNodeChildrenState.Loading -> TreeStateMessage(
-            text = "Loading...",
+            text = stringResource(strings.tree_loading),
             depth = depth,
         )
 
         is ZNodeChildrenState.Failed -> TreeStateMessage(
-            text = childrenState.error.message,
+            text = childrenState.error.localized(),
             depth = depth,
             isError = true,
         )
@@ -205,7 +209,7 @@ private fun TreeChildren(
         is ZNodeChildrenState.Loaded -> {
             if (childrenState.children.isEmpty()) {
                 TreeStateMessage(
-                    text = "No children",
+                    text = stringResource(strings.tree_no_children),
                     depth = depth,
                 )
             }

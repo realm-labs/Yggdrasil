@@ -12,6 +12,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.*
 import io.github.realmlabs.yggdrasil.domain.model.*
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 @Composable
 fun CommandWorkflowDialog(
@@ -27,11 +29,12 @@ fun CommandWorkflowDialog(
     onSelectPath: (ZNodePath) -> Unit,
     onSelectConnection: (ConnectionId) -> Unit,
 ) {
+    val strings = Res.string
     var section by remember { mutableStateOf(CommandSection.Search) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Command") },
+        title = { Text(stringResource(strings.command_title)) },
         text = {
             Column(
                 modifier = Modifier.width(720.dp).heightIn(max = 680.dp),
@@ -40,7 +43,7 @@ fun CommandWorkflowDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CommandSection.entries.forEach { item ->
                         ModeButton(
-                            text = item.label,
+                            text = item.label(),
                             selected = section == item,
                             onClick = { section = item },
                         )
@@ -64,7 +67,7 @@ fun CommandWorkflowDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text(stringResource(strings.common_close))
             }
         },
     )
@@ -75,6 +78,7 @@ private fun ZkCliCommandPane(
     state: AppState,
     onExecuteZkCli: (ZkCliCommandRequest) -> Unit,
 ) {
+    val strings = Res.string
     var command by remember { mutableStateOf("ls /") }
     val running = state.zkCliState is ZkCliState.Running
 
@@ -83,7 +87,7 @@ private fun ZkCliCommandPane(
             OutlinedTextField(
                 value = command,
                 onValueChange = { command = it },
-                label = { Text("ZK CLI") },
+                label = { Text(stringResource(strings.command_zkcli)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
@@ -91,27 +95,30 @@ private fun ZkCliCommandPane(
                 enabled = command.isNotBlank() && state.activeConnection != null && !running,
                 onClick = { onExecuteZkCli(ZkCliCommandRequest(command)) },
             ) {
-                Text("Run")
+                Text(stringResource(strings.common_run))
             }
         }
         Text(
-            text = "Runs against ${state.activeConnection?.name ?: "no active connection"}. Write commands obey the connection mode.",
+            text = stringResource(
+                strings.command_zkcli_description,
+                state.activeConnection?.name ?: stringResource(strings.command_no_active_connection),
+            ),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         when (val cli = state.zkCliState) {
             ZkCliState.Idle -> EmptyPanelMessage(
-                "No command run",
-                "Try ls /, get /path, set /path value, getAcl /path, or help."
+                stringResource(strings.command_no_run_title),
+                stringResource(strings.command_no_run_body),
             )
 
             is ZkCliState.Running -> Text(
-                "Running ${cli.request.commandLine}",
+                stringResource(strings.command_running, cli.request.commandLine),
                 style = MaterialTheme.typography.bodySmall
             )
 
-            is ZkCliState.Failed -> Text(cli.error.message, color = MaterialTheme.colorScheme.error)
-            is ZkCliState.Loaded -> CommandOutput(cli.result.output)
+            is ZkCliState.Failed -> Text(cli.error.localized(), color = MaterialTheme.colorScheme.error)
+            is ZkCliState.Loaded -> CommandOutput(localizedZkCliOutput(cli.result.output))
         }
     }
 }
@@ -123,6 +130,7 @@ private fun SearchCommandPane(
     onCancelSearch: () -> Unit,
     onSelectPath: (ZNodePath) -> Unit,
 ) {
+    val strings = Res.string
     var query by remember { mutableStateOf("") }
     var rootPath by remember(state.selectedPath) { mutableStateOf(state.selectedPath?.value ?: "/") }
     var searchPath by remember { mutableStateOf(true) }
@@ -136,14 +144,14 @@ private fun SearchCommandPane(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Query") },
+                label = { Text(stringResource(strings.common_query)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = rootPath,
                 onValueChange = { rootPath = it },
-                label = { Text("Root") },
+                label = { Text(stringResource(strings.common_root)) },
                 singleLine = true,
                 modifier = Modifier.width(170.dp),
             )
@@ -152,26 +160,32 @@ private fun SearchCommandPane(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            FilterChip(selected = searchPath, onClick = { searchPath = !searchPath }, label = { Text("Path") })
-            FilterChip(selected = searchData, onClick = { searchData = !searchData }, label = { Text("Data") })
+            FilterChip(
+                selected = searchPath,
+                onClick = { searchPath = !searchPath },
+                label = { Text(stringResource(strings.common_path)) })
+            FilterChip(
+                selected = searchData,
+                onClick = { searchData = !searchData },
+                label = { Text(stringResource(strings.common_data)) })
             OutlinedTextField(
                 value = maxDepth,
                 onValueChange = { maxDepth = it.filter(Char::isDigit) },
-                label = { Text("Max depth") },
+                label = { Text(stringResource(strings.command_max_depth)) },
                 singleLine = true,
                 modifier = Modifier.width(120.dp),
             )
             OutlinedTextField(
                 value = maxNodes,
                 onValueChange = { maxNodes = it.filter(Char::isDigit) },
-                label = { Text("Max nodes") },
+                label = { Text(stringResource(strings.command_max_nodes)) },
                 singleLine = true,
                 modifier = Modifier.width(130.dp),
             )
             Spacer(Modifier.weight(1f))
             if (running) {
                 OutlinedButton(onClick = onCancelSearch) {
-                    Text("Cancel")
+                    Text(stringResource(strings.common_cancel))
                 }
             }
             Button(
@@ -192,16 +206,29 @@ private fun SearchCommandPane(
                     }
                 },
             ) {
-                Text("Search")
+                Text(stringResource(strings.common_search))
             }
         }
         when (val search = state.searchState) {
-            ZNodeSearchState.Idle -> EmptyPanelMessage("No search yet", "Search by path or data from the selected root.")
-            is ZNodeSearchState.Running -> Text("Scanned ${search.scannedNodes} nodes", style = MaterialTheme.typography.bodySmall)
-            is ZNodeSearchState.Failed -> Text(search.error.message, color = MaterialTheme.colorScheme.error)
+            ZNodeSearchState.Idle -> EmptyPanelMessage(
+                stringResource(strings.command_no_search_title),
+                stringResource(strings.command_no_search_body)
+            )
+
+            is ZNodeSearchState.Running -> Text(
+                stringResource(strings.command_scanned_nodes, search.scannedNodes),
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            is ZNodeSearchState.Failed -> Text(search.error.localized(), color = MaterialTheme.colorScheme.error)
             is ZNodeSearchState.Loaded -> {
                 Text(
-                    text = "Hits ${search.report.hits.size} · scanned ${search.report.scannedNodes} · ${search.report.stopReason}",
+                    text = stringResource(
+                        strings.command_hits_summary,
+                        search.report.hits.size,
+                        search.report.scannedNodes,
+                        search.report.stopReason.localized(),
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -228,6 +255,7 @@ private fun ExportCommandPane(
     state: AppState,
     onExport: (Boolean, ZNodeDataEncoding) -> Unit,
 ) {
+    val strings = Res.string
     var includeAcl by remember { mutableStateOf(false) }
     var encoding by remember { mutableStateOf(ZNodeDataEncoding.Text) }
     val selectedPath = state.selectedPath
@@ -235,27 +263,40 @@ private fun ExportCommandPane(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-            text = "Root ${selectedPath?.value ?: "-"}",
+            text = stringResource(strings.command_root_summary, selectedPath?.value ?: "-"),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FilterChip(selected = includeAcl, onClick = { includeAcl = !includeAcl }, label = { Text("Include ACL") })
+            FilterChip(
+                selected = includeAcl,
+                onClick = { includeAcl = !includeAcl },
+                label = { Text(stringResource(strings.command_include_acl)) })
             ZNodeDataEncoding.entries.forEach { item ->
                 FilterChip(selected = encoding == item, onClick = { encoding = item }, label = { Text(item.name) })
             }
             Spacer(Modifier.weight(1f))
             Button(enabled = selectedPath != null && !running, onClick = { onExport(includeAcl, encoding) }) {
-                Text("Export JSON")
+                Text(stringResource(strings.command_export_json))
             }
         }
         when (val export = state.exportState) {
-            ZNodeExportState.Idle -> EmptyPanelMessage("No export yet", "Exported JSON appears here.")
-            is ZNodeExportState.Running -> Text("Exporting ${export.request.rootPath}", style = MaterialTheme.typography.bodySmall)
-            is ZNodeExportState.Failed -> Text(export.error.message, color = MaterialTheme.colorScheme.error)
+            ZNodeExportState.Idle -> EmptyPanelMessage(
+                stringResource(strings.command_no_export_title),
+                stringResource(strings.command_no_export_body)
+            )
+
+            is ZNodeExportState.Running -> Text(
+                stringResource(
+                    strings.command_exporting,
+                    export.request.rootPath.value
+                ), style = MaterialTheme.typography.bodySmall
+            )
+
+            is ZNodeExportState.Failed -> Text(export.error.localized(), color = MaterialTheme.colorScheme.error)
             is ZNodeExportState.Loaded -> {
                 Text(
-                    "Exported ${export.report.exportedNodes} nodes",
+                    stringResource(strings.command_exported_nodes, export.report.exportedNodes),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -276,6 +317,7 @@ private fun ImportCommandPane(
     state: AppState,
     onImport: (ZNodeImportRequest) -> Unit,
 ) {
+    val strings = Res.string
     var json by remember { mutableStateOf("") }
     var dryRun by remember { mutableStateOf(true) }
     var strategy by remember { mutableStateOf(ZNodeImportConflictStrategy.Skip) }
@@ -285,14 +327,17 @@ private fun ImportCommandPane(
         OutlinedTextField(
             value = json,
             onValueChange = { json = it },
-            label = { Text("Import JSON") },
+            label = { Text(stringResource(strings.command_import_json)) },
             textStyle = MaterialTheme.typography.bodySmall,
             modifier = Modifier.fillMaxWidth().height(180.dp),
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = dryRun, onClick = { dryRun = !dryRun }, label = { Text("Dry run") })
+            FilterChip(
+                selected = dryRun,
+                onClick = { dryRun = !dryRun },
+                label = { Text(stringResource(strings.command_dry_run)) })
             ZNodeImportConflictStrategy.entries.forEach { item ->
-                FilterChip(selected = strategy == item, onClick = { strategy = item }, label = { Text(item.label) })
+                FilterChip(selected = strategy == item, onClick = { strategy = item }, label = { Text(item.label()) })
             }
             Spacer(Modifier.weight(1f))
             Button(
@@ -307,24 +352,37 @@ private fun ImportCommandPane(
                     )
                 },
             ) {
-                Text(if (dryRun) "Plan" else "Import")
+                Text(if (dryRun) stringResource(strings.command_plan) else stringResource(strings.command_import))
             }
         }
         when (val import = state.importState) {
-            ZNodeImportState.Idle -> EmptyPanelMessage("No import plan", "Run dry run before applying imported JSON.")
-            is ZNodeImportState.Running -> Text("Import is running", style = MaterialTheme.typography.bodySmall)
-            is ZNodeImportState.Failed -> Text(import.error.message, color = MaterialTheme.colorScheme.error)
+            ZNodeImportState.Idle -> EmptyPanelMessage(
+                stringResource(strings.command_no_import_title),
+                stringResource(strings.command_no_import_body)
+            )
+
+            is ZNodeImportState.Running -> Text(
+                stringResource(strings.command_import_running),
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            is ZNodeImportState.Failed -> Text(import.error.localized(), color = MaterialTheme.colorScheme.error)
             is ZNodeImportState.Loaded -> {
                 Text(
-                    "Operations ${import.report.operations.size} · applied ${import.report.appliedCount} · failed ${import.report.failureCount}",
+                    stringResource(
+                        strings.command_operations_summary,
+                        import.report.operations.size,
+                        import.report.appliedCount,
+                        import.report.failureCount,
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 ResultList {
                     import.report.operations.forEach { operation ->
                         ListResultRow(
-                            title = "${operation.type} ${operation.path.value}",
-                            body = operation.message,
+                            title = "${operation.localizedType()} ${operation.path.value}",
+                            body = operation.localizedMessage(),
                             onClick = null,
                         )
                     }
@@ -342,6 +400,7 @@ private fun CompareCommandPane(
     onSelectPath: (ZNodePath) -> Unit,
     onSelectConnection: (ConnectionId) -> Unit,
 ) {
+    val strings = Res.string
     var leftConnectionId by remember(state.activeConnectionId) { mutableStateOf(state.activeConnectionId ?: state.connections.firstOrNull()?.id) }
     var rightConnectionId by remember(state.connections) {
         mutableStateOf(state.connections.firstOrNull { it.id != leftConnectionId }?.id ?: state.connections.firstOrNull()?.id)
@@ -355,14 +414,14 @@ private fun CompareCommandPane(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ConnectionPicker(
-                label = "Left",
+                label = stringResource(strings.command_left),
                 connections = state.connections,
                 selectedId = leftConnectionId,
                 onSelected = { leftConnectionId = it },
                 modifier = Modifier.weight(1f),
             )
             ConnectionPicker(
-                label = "Right",
+                label = stringResource(strings.command_right),
                 connections = state.connections,
                 selectedId = rightConnectionId,
                 onSelected = { rightConnectionId = it },
@@ -373,31 +432,34 @@ private fun CompareCommandPane(
             OutlinedTextField(
                 value = leftRoot,
                 onValueChange = { leftRoot = it },
-                label = { Text("Left root") },
+                label = { Text(stringResource(strings.command_left_root)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = rightRoot,
                 onValueChange = { rightRoot = it },
-                label = { Text("Right root") },
+                label = { Text(stringResource(strings.command_right_root)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = maxNodes,
                 onValueChange = { maxNodes = it.filter(Char::isDigit) },
-                label = { Text("Max nodes") },
+                label = { Text(stringResource(strings.command_max_nodes)) },
                 singleLine = true,
                 modifier = Modifier.width(130.dp),
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FilterChip(selected = includeAcl, onClick = { includeAcl = !includeAcl }, label = { Text("Compare ACL") })
+            FilterChip(
+                selected = includeAcl,
+                onClick = { includeAcl = !includeAcl },
+                label = { Text(stringResource(strings.command_compare_acl)) })
             Spacer(Modifier.weight(1f))
             if (running) {
                 OutlinedButton(onClick = onCancelCompare) {
-                    Text("Cancel")
+                    Text(stringResource(strings.common_cancel))
                 }
             }
             Button(
@@ -419,24 +481,37 @@ private fun CompareCommandPane(
                     }
                 },
             ) {
-                Text("Compare")
+                Text(stringResource(strings.command_compare))
             }
         }
         when (val compare = state.compareState) {
-            ZNodeCompareState.Idle -> EmptyPanelMessage("No comparison yet", "Differences across existence, data, and ACL appear here.")
-            is ZNodeCompareState.Running -> Text("Scanned ${compare.scannedNodes} nodes", style = MaterialTheme.typography.bodySmall)
-            is ZNodeCompareState.Failed -> Text(compare.error.message, color = MaterialTheme.colorScheme.error)
+            ZNodeCompareState.Idle -> EmptyPanelMessage(
+                stringResource(strings.command_no_compare_title),
+                stringResource(strings.command_no_compare_body)
+            )
+
+            is ZNodeCompareState.Running -> Text(
+                stringResource(strings.command_scanned_nodes, compare.scannedNodes),
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            is ZNodeCompareState.Failed -> Text(compare.error.localized(), color = MaterialTheme.colorScheme.error)
             is ZNodeCompareState.Loaded -> {
                 Text(
-                    "Differences ${compare.report.differences.size} · scanned ${compare.report.scannedNodes} · ${compare.report.stopReason}",
+                    stringResource(
+                        strings.command_differences_summary,
+                        compare.report.differences.size,
+                        compare.report.scannedNodes,
+                        compare.report.stopReason.localized(),
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 ResultList {
                     compare.report.differences.forEach { difference ->
                         ListResultRow(
-                            title = "${difference.type} ${difference.relativePath}",
-                            body = difference.message,
+                            title = "${difference.localizedType()} ${difference.relativePath}",
+                            body = difference.localizedMessage(),
                             onClick = difference.leftPath?.let { leftPath ->
                                 {
                                     compare.report.request.leftConnectionId.let(onSelectConnection)
@@ -464,8 +539,9 @@ private fun ConnectionPicker(
     onSelected: (ConnectionId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = Res.string
     var expanded by remember { mutableStateOf(false) }
-    val selectedName = connections.firstOrNull { it.id == selectedId }?.name ?: "Select"
+    val selectedName = connections.firstOrNull { it.id == selectedId }?.name ?: stringResource(strings.common_select)
 
     Box(modifier) {
         OutlinedButton(
@@ -538,17 +614,32 @@ private fun CommandOutput(output: String) {
     )
 }
 
-private enum class CommandSection(val label: String) {
-    ZkCli("ZK CLI"),
-    Search("Search"),
-    Export("Export"),
-    Import("Import"),
-    Compare("Compare"),
+private enum class CommandSection {
+    ZkCli,
+    Search,
+    Export,
+    Import,
+    Compare,
 }
 
-private val ZNodeImportConflictStrategy.label: String
-    get() = when (this) {
-        ZNodeImportConflictStrategy.Skip -> "skip"
-        ZNodeImportConflictStrategy.Overwrite -> "overwrite"
-        ZNodeImportConflictStrategy.CreateOnly -> "create-only"
+@Composable
+private fun CommandSection.label(): String {
+    val strings = Res.string
+    return when (this) {
+        CommandSection.ZkCli -> stringResource(strings.command_zkcli)
+        CommandSection.Search -> stringResource(strings.command_search)
+        CommandSection.Export -> stringResource(strings.command_export)
+        CommandSection.Import -> stringResource(strings.command_import)
+        CommandSection.Compare -> stringResource(strings.command_compare)
     }
+}
+
+@Composable
+private fun ZNodeImportConflictStrategy.label(): String {
+    val strings = Res.string
+    return when (this) {
+        ZNodeImportConflictStrategy.Skip -> stringResource(strings.command_strategy_skip)
+        ZNodeImportConflictStrategy.Overwrite -> stringResource(strings.command_strategy_overwrite)
+        ZNodeImportConflictStrategy.CreateOnly -> stringResource(strings.command_strategy_create_only)
+    }
+}

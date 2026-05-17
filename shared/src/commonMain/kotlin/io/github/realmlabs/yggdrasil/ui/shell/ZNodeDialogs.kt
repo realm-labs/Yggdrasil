@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.DeletePreviewState
 import io.github.realmlabs.yggdrasil.domain.model.*
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 @Composable
 fun CreateNodeDialog(
@@ -21,6 +23,7 @@ fun CreateNodeDialog(
     onDismiss: () -> Unit,
     onCreate: (CreateZNodeRequest) -> Unit,
 ) {
+    val strings = Res.string
     val defaultPath = selectedPath?.let { path ->
         if (path == ZNodePath.Root) "/new-node" else "${path.value}/new-node"
     } ?: "/new-node"
@@ -28,35 +31,36 @@ fun CreateNodeDialog(
     var dataText by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf(ZNodeCreateMode.Persistent) }
     var validationMessage by remember { mutableStateOf<String?>(null) }
+    val invalidPathMessage = stringResource(strings.error_invalid_zk_path, pathText)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create znode") },
+        title = { Text(stringResource(strings.dialog_create_znode)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextField(
                     value = pathText,
                     onValueChange = { pathText = it },
-                    label = { Text("Path") },
+                    label = { Text(stringResource(strings.common_path)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 TextField(
                     value = dataText,
                     onValueChange = { dataText = it },
-                    label = { Text("Data") },
+                    label = { Text(stringResource(strings.common_data)) },
                     modifier = Modifier.fillMaxWidth().height(140.dp),
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ModeButton(
-                            text = "Persistent",
+                            text = stringResource(strings.dialog_mode_persistent),
                             selected = mode == ZNodeCreateMode.Persistent,
                             onClick = { mode = ZNodeCreateMode.Persistent },
                             modifier = Modifier.weight(1f),
                         )
                         ModeButton(
-                            text = "Ephemeral",
+                            text = stringResource(strings.dialog_mode_ephemeral),
                             selected = mode == ZNodeCreateMode.Ephemeral,
                             onClick = { mode = ZNodeCreateMode.Ephemeral },
                             modifier = Modifier.weight(1f),
@@ -64,13 +68,13 @@ fun CreateNodeDialog(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ModeButton(
-                            text = "Persistent seq",
+                            text = stringResource(strings.dialog_mode_persistent_seq),
                             selected = mode == ZNodeCreateMode.PersistentSequential,
                             onClick = { mode = ZNodeCreateMode.PersistentSequential },
                             modifier = Modifier.weight(1f),
                         )
                         ModeButton(
-                            text = "Ephemeral seq",
+                            text = stringResource(strings.dialog_mode_ephemeral_seq),
                             selected = mode == ZNodeCreateMode.EphemeralSequential,
                             onClick = { mode = ZNodeCreateMode.EphemeralSequential },
                             modifier = Modifier.weight(1f),
@@ -98,16 +102,16 @@ fun CreateNodeDialog(
                             ),
                         )
 
-                        is OperationResult.Failure -> validationMessage = parsedPath.error.message
+                        is OperationResult.Failure -> validationMessage = invalidPathMessage
                     }
                 },
             ) {
-                Text("Create")
+                Text(stringResource(strings.common_create))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(strings.common_cancel))
             }
         },
     )
@@ -121,6 +125,7 @@ fun DeleteNodeDialog(
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val strings = Res.string
     val selectedPath = state.selectedPath
     var recursive by remember(selectedPath) { mutableStateOf(false) }
     var confirmation by remember(selectedPath) { mutableStateOf("") }
@@ -130,11 +135,11 @@ fun DeleteNodeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete znode") },
+        title = { Text(stringResource(strings.dialog_delete_znode)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = selectedPath?.value ?: "No selected path",
+                    text = selectedPath?.value ?: stringResource(strings.common_no_selected_path),
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -147,35 +152,35 @@ fun DeleteNodeDialog(
                         checked = recursive,
                         onCheckedChange = { recursive = it },
                     )
-                    Text("Recursive delete")
+                    Text(stringResource(strings.dialog_recursive_delete))
                 }
                 OutlinedButton(
                     onClick = { onPreview(recursive) },
                     enabled = selectedPath != null,
                 ) {
-                    Text("Preview")
+                    Text(stringResource(strings.common_preview))
                 }
                 when (val previewState = state.deletePreview) {
                     DeletePreviewState.None -> Text(
-                        text = "Preview the delete before confirming.",
+                        text = stringResource(strings.dialog_delete_preview_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
                     is DeletePreviewState.Loading -> Text(
-                        text = "Loading delete preview for ${previewState.path}",
+                        text = stringResource(strings.dialog_delete_preview_loading, previewState.path.value),
                         style = MaterialTheme.typography.bodySmall,
                     )
 
                     is DeletePreviewState.Failed -> Text(
-                        text = previewState.error.message,
+                        text = previewState.error.localized(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
 
                     is DeletePreviewState.Loaded -> {
                         Text(
-                            text = "${previewState.preview.paths.size} node${if (previewState.preview.paths.size == 1) "" else "s"} will be deleted.",
+                            text = stringResource(strings.dialog_delete_preview_count, previewState.preview.paths.size),
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Column(
@@ -200,7 +205,14 @@ fun DeleteNodeDialog(
                             TextField(
                                 value = confirmation,
                                 onValueChange = { confirmation = it },
-                                label = { Text("Type ${previewState.preview.rootPath} to confirm") },
+                                label = {
+                                    Text(
+                                        stringResource(
+                                            strings.dialog_type_path_to_confirm,
+                                            previewState.preview.rootPath.value
+                                        )
+                                    )
+                                },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                             )
@@ -214,12 +226,12 @@ fun DeleteNodeDialog(
                 onClick = { onDelete(confirmation) },
                 enabled = canDelete,
             ) {
-                Text("Delete")
+                Text(stringResource(strings.common_delete))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(strings.common_cancel))
             }
         },
     )
@@ -244,6 +256,8 @@ fun AclEditorDialog(
     onDismiss: () -> Unit,
     onSave: (List<ZNodeAcl>) -> Unit,
 ) {
+    val strings = Res.string
+    val aclValidation = stringResource(strings.dialog_acl_validation)
     var entries by remember(detail.path, detail.stat.aversion) {
         mutableStateOf(
             detail.acl.map { acl ->
@@ -265,7 +279,7 @@ fun AclEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit ACL") },
+        title = { Text(stringResource(strings.dialog_edit_acl)) },
         text = {
             Column(
                 modifier = Modifier.height(520.dp).verticalScroll(rememberScrollState()),
@@ -275,18 +289,18 @@ fun AclEditorDialog(
                     OutlinedButton(onClick = {
                         entries = entries + AclDraft("world", "anyone", setOf(ZNodePermission.Read))
                     }) {
-                        Text("World read")
+                        Text(stringResource(strings.dialog_world_read))
                     }
                     OutlinedButton(onClick = {
                         entries = entries + AclDraft("digest", "user:password-hash", ZNodePermission.entries.toSet())
                     }) {
-                        Text("Digest admin")
+                        Text(stringResource(strings.dialog_digest_admin))
                     }
                     OutlinedButton(onClick = {
                         entries =
                             entries + AclDraft("ip", "127.0.0.1", setOf(ZNodePermission.Read, ZNodePermission.Write))
                     }) {
-                        Text("IP rw")
+                        Text(stringResource(strings.dialog_ip_rw))
                     }
                 }
                 entries.forEachIndexed { index, entry ->
@@ -301,14 +315,14 @@ fun AclEditorDialog(
                             TextField(
                                 value = entry.scheme,
                                 onValueChange = { value -> updateEntry(index) { it.copy(scheme = value) } },
-                                label = { Text("Scheme") },
+                                label = { Text(stringResource(strings.dialog_scheme)) },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                             )
                             TextField(
                                 value = entry.id,
                                 onValueChange = { value -> updateEntry(index) { it.copy(id = value) } },
-                                label = { Text("Id") },
+                                label = { Text(stringResource(strings.dialog_id)) },
                                 modifier = Modifier.weight(2f),
                                 singleLine = true,
                             )
@@ -337,7 +351,7 @@ fun AclEditorDialog(
                             TextButton(onClick = {
                                 entries = entries.filterIndexed { currentIndex, _ -> currentIndex != index }
                             }) {
-                                Text("Remove")
+                                Text(stringResource(strings.dialog_remove))
                             }
                         }
                     }
@@ -345,7 +359,7 @@ fun AclEditorDialog(
                 OutlinedButton(onClick = {
                     entries = entries + AclDraft("world", "anyone", setOf(ZNodePermission.Read))
                 }) {
-                    Text("Add ACL")
+                    Text(stringResource(strings.dialog_add_acl))
                 }
                 validationMessage?.let { message ->
                     Text(
@@ -361,18 +375,18 @@ fun AclEditorDialog(
                 onClick = {
                     val acl = entries.map(AclDraft::toAcl)
                     if (acl.isEmpty() || acl.any { it.scheme.isBlank() || it.id.isBlank() || it.permissions.isEmpty() }) {
-                        validationMessage = "ACL entries require scheme, id, and at least one permission."
+                        validationMessage = aclValidation
                     } else {
                         onSave(acl)
                     }
                 },
             ) {
-                Text("Save")
+                Text(stringResource(strings.common_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(strings.common_cancel))
             }
         },
     )

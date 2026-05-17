@@ -31,7 +31,7 @@ class YggdrasilStateHolder(
             }
 
             is OperationResult.Failure -> {
-                state = state.copy(statusMessage = result.error.message)
+                state = state.copy(statusMessage = StatusMessage.Error(result.error))
             }
         }
     }
@@ -39,7 +39,7 @@ class YggdrasilStateHolder(
     suspend fun loadConnections() {
         val repository = connectionProfileRepository ?: return
 
-        state = state.copy(isLoadingConnections = true, statusMessage = "Loading connections")
+        state = state.copy(isLoadingConnections = true, statusMessage = StatusMessage.LoadingConnections)
         when (val result = repository.loadProfiles()) {
             is OperationResult.Success -> {
                 state = state.copy(
@@ -49,15 +49,15 @@ class YggdrasilStateHolder(
                     },
                     isLoadingConnections = false,
                     statusMessage = if (result.value.isEmpty()) {
-                        "No saved connections"
+                        StatusMessage.NoSavedConnections
                     } else {
-                        "Loaded ${result.value.size} connection${if (result.value.size == 1) "" else "s"}"
+                        StatusMessage.LoadedConnections(result.value.size)
                     },
                 )
             }
 
             is OperationResult.Failure -> {
-                state = state.copy(isLoadingConnections = false, statusMessage = result.error.message)
+                state = state.copy(isLoadingConnections = false, statusMessage = StatusMessage.Error(result.error))
             }
         }
     }
@@ -105,7 +105,7 @@ class YggdrasilStateHolder(
             importState = ZNodeImportState.Idle,
             compareState = ZNodeCompareState.Idle,
             zkCliState = ZkCliState.Idle,
-            statusMessage = "Selected ${connection.name}",
+            statusMessage = StatusMessage.SelectedConnection(connection.name),
         )
         if (state.settings.startAtRoot) {
             selectPath(ZNodePath.Root)
@@ -144,7 +144,7 @@ class YggdrasilStateHolder(
                     importState = ZNodeImportState.Idle,
                     compareState = ZNodeCompareState.Idle,
                     zkCliState = ZkCliState.Idle,
-                    statusMessage = "Saved ${profile.name}",
+                    statusMessage = StatusMessage.SavedConnection(profile.name),
                 )
             }
 
@@ -194,7 +194,7 @@ class YggdrasilStateHolder(
                     importState = if (isActive) ZNodeImportState.Idle else state.importState,
                     compareState = if (isActive) ZNodeCompareState.Idle else state.compareState,
                     zkCliState = if (isActive) ZkCliState.Idle else state.zkCliState,
-                    statusMessage = "Updated ${profile.name}",
+                    statusMessage = StatusMessage.UpdatedConnection(profile.name),
                 )
                 if (isActive) {
                     selectPath(ZNodePath.Root)
@@ -230,7 +230,7 @@ class YggdrasilStateHolder(
                     importState = if (state.activeConnectionId == connectionId) ZNodeImportState.Idle else state.importState,
                     compareState = if (state.activeConnectionId == connectionId) ZNodeCompareState.Idle else state.compareState,
                     zkCliState = if (state.activeConnectionId == connectionId) ZkCliState.Idle else state.zkCliState,
-                    statusMessage = "Deleted ${connection.name}",
+                    statusMessage = StatusMessage.DeletedConnection(connection.name),
                 )
             }
 
@@ -244,14 +244,14 @@ class YggdrasilStateHolder(
 
         state = state.copy(
             connectionStatuses = state.connectionStatuses + (connectionId to ConnectionRuntimeStatus.Connecting),
-            statusMessage = "Testing ${profile.name}",
+            statusMessage = StatusMessage.TestingConnection(profile.name),
         )
 
         when (val result = tester.testConnection(profile)) {
             is OperationResult.Success -> {
                 state = state.copy(
                     connectionStatuses = state.connectionStatuses + (connectionId to ConnectionRuntimeStatus.Connected),
-                    statusMessage = "Connected to ${profile.name}",
+                    statusMessage = StatusMessage.ConnectedTo(profile.name),
                 )
                 if (state.activeConnectionId == connectionId && state.selectedPath == null) {
                     selectPath(ZNodePath.Root)
@@ -261,7 +261,7 @@ class YggdrasilStateHolder(
             is OperationResult.Failure -> {
                 state = state.copy(
                     connectionStatuses = state.connectionStatuses + (connectionId to ConnectionRuntimeStatus.Failed(result.error)),
-                    statusMessage = result.error.message,
+                    statusMessage = StatusMessage.Error(result.error),
                 )
             }
         }
@@ -276,14 +276,14 @@ class YggdrasilStateHolder(
             ),
             deletePreview = DeletePreviewState.None,
             watchState = ZNodeWatchState(watchedPath = path),
-            statusMessage = "Loading $path",
+            statusMessage = StatusMessage.LoadingPath(path),
         )
         loadDetail(path)
         loadChildren(path)
         if (state.nodeSelection is NodeSelectionState.Loading && state.selectedPath == path) {
             state = state.copy(
                 nodeSelection = NodeSelectionState.SelectedPath(path),
-                statusMessage = "Loaded $path",
+                statusMessage = StatusMessage.LoadedPath(path),
             )
         }
     }
@@ -314,7 +314,7 @@ class YggdrasilStateHolder(
                 } else {
                     state.znodeChildren + (path to ZNodeChildrenState.Loading)
                 },
-                statusMessage = if (updateStatus) "Loading children for $path" else state.statusMessage,
+                statusMessage = if (updateStatus) StatusMessage.LoadingChildren(path) else state.statusMessage,
             )
         }
 
@@ -324,7 +324,7 @@ class YggdrasilStateHolder(
                     znodeChildren = state.znodeChildren + (path to ZNodeChildrenState.Loaded(result.value)),
                     connectionStatuses = state.connectionStatuses + (profile.id to ConnectionRuntimeStatus.Connected),
                     statusMessage = if (updateStatus) {
-                        "Loaded ${result.value.size} child${if (result.value.size == 1) "" else "ren"} for $path"
+                        StatusMessage.LoadedChildren(result.value.size, path)
                     } else {
                         state.statusMessage
                     },
@@ -342,7 +342,7 @@ class YggdrasilStateHolder(
                         } else {
                             state.znodeChildren + (path to ZNodeChildrenState.Failed(result.error))
                         },
-                        statusMessage = if (updateStatus) result.error.message else state.statusMessage,
+                        statusMessage = if (updateStatus) StatusMessage.Error(result.error) else state.statusMessage,
                     )
                 }
             }
@@ -380,12 +380,12 @@ class YggdrasilStateHolder(
             return
         }
 
-        state = state.copy(statusMessage = "Creating ${request.path}")
+        state = state.copy(statusMessage = StatusMessage.CreatingNode(request.path))
         when (val result = repository.createNode(profile, request)) {
             is OperationResult.Success -> {
                 result.value.parent?.let { loadChildren(it) }
                 selectPath(result.value)
-                state = state.copy(statusMessage = "Created ${result.value}")
+                state = state.copy(statusMessage = StatusMessage.CreatedNode(result.value))
             }
 
             is OperationResult.Failure -> reportError(result.error)
@@ -397,7 +397,7 @@ class YggdrasilStateHolder(
         val profile = requireWritableProfile() ?: return
         val path = state.selectedPath ?: return
 
-        state = state.copy(statusMessage = "Saving data for $path")
+        state = state.copy(statusMessage = StatusMessage.SavingData(path))
         val request = UpdateZNodeDataRequest(
             path = path,
             data = data,
@@ -408,7 +408,7 @@ class YggdrasilStateHolder(
             is OperationResult.Success -> {
                 state = state.copy(
                     nodeDetail = ZNodeDetailState.Loaded(result.value),
-                    statusMessage = "Saved data for $path",
+                    statusMessage = StatusMessage.SavedData(path),
                 )
             }
 
@@ -422,13 +422,16 @@ class YggdrasilStateHolder(
         val path = state.selectedPath ?: return
         if (path == ZNodePath.Root) {
             val error = AppError.Validation("Deleting the root znode is not supported.")
-            state = state.copy(deletePreview = DeletePreviewState.Failed(path, error), statusMessage = error.message)
+            state = state.copy(
+                deletePreview = DeletePreviewState.Failed(path, error),
+                statusMessage = StatusMessage.Error(error)
+            )
             return
         }
 
         state = state.copy(
             deletePreview = DeletePreviewState.Loading(path, recursive),
-            statusMessage = "Previewing delete for $path",
+            statusMessage = StatusMessage.PreviewingDelete(path),
         )
         val request = DeleteZNodeRequest(path = path, recursive = recursive)
 
@@ -436,14 +439,14 @@ class YggdrasilStateHolder(
             is OperationResult.Success -> {
                 state = state.copy(
                     deletePreview = DeletePreviewState.Loaded(result.value),
-                    statusMessage = "Previewed delete for ${result.value.paths.size} node${if (result.value.paths.size == 1) "" else "s"}",
+                    statusMessage = StatusMessage.PreviewedDelete(result.value.paths.size),
                 )
             }
 
             is OperationResult.Failure -> {
                 state = state.copy(
                     deletePreview = DeletePreviewState.Failed(path, result.error),
-                    statusMessage = result.error.message,
+                    statusMessage = StatusMessage.Error(result.error),
                 )
             }
         }
@@ -458,7 +461,7 @@ class YggdrasilStateHolder(
             return
         }
 
-        state = state.copy(statusMessage = "Deleting ${preview.rootPath}")
+        state = state.copy(statusMessage = StatusMessage.DeletingNode(preview.rootPath))
         val request = DeleteZNodeRequest(
             path = preview.rootPath,
             recursive = preview.recursive,
@@ -472,7 +475,7 @@ class YggdrasilStateHolder(
                     nodeDetail = ZNodeDetailState.None,
                     deletePreview = DeletePreviewState.None,
                     watchState = ZNodeWatchState(),
-                    statusMessage = "Deleted ${preview.rootPath}",
+                    statusMessage = StatusMessage.DeletedNode(preview.rootPath),
                 )
                 parent?.let { loadChildren(it) }
             }
@@ -497,7 +500,7 @@ class YggdrasilStateHolder(
             return
         }
 
-        state = state.copy(statusMessage = "Saving ACL for $path")
+        state = state.copy(statusMessage = StatusMessage.SavingAcl(path))
         val request = UpdateZNodeAclRequest(
             path = path,
             acl = acl,
@@ -508,7 +511,7 @@ class YggdrasilStateHolder(
             is OperationResult.Success -> {
                 state = state.copy(
                     nodeDetail = ZNodeDetailState.Loaded(result.value),
-                    statusMessage = "Saved ACL for $path",
+                    statusMessage = StatusMessage.SavedAcl(path),
                 )
             }
 
@@ -526,25 +529,25 @@ class YggdrasilStateHolder(
 
         state = state.copy(
             searchState = ZNodeSearchState.Running(request),
-            statusMessage = "Searching from ${request.rootPath}",
+            statusMessage = StatusMessage.SearchingFrom(request.rootPath),
         )
         when (val result = service.search(profile, request) { scanned ->
             state = state.copy(
                 searchState = ZNodeSearchState.Running(request, scanned),
-                statusMessage = "Searching from ${request.rootPath} · scanned $scanned",
+                statusMessage = StatusMessage.SearchingProgress(request.rootPath, scanned),
             )
         }) {
             is OperationResult.Success -> {
                 state = state.copy(
                     searchState = ZNodeSearchState.Loaded(result.value),
-                    statusMessage = "Search found ${result.value.hits.size} hit${if (result.value.hits.size == 1) "" else "s"} · scanned ${result.value.scannedNodes}",
+                    statusMessage = StatusMessage.SearchFound(result.value.hits.size, result.value.scannedNodes),
                 )
             }
 
             is OperationResult.Failure -> {
                 state = state.copy(
                     searchState = ZNodeSearchState.Failed(request, result.error),
-                    statusMessage = result.error.message,
+                    statusMessage = StatusMessage.Error(result.error),
                 )
             }
         }
@@ -561,7 +564,7 @@ class YggdrasilStateHolder(
                     stopReason = ZNodeTraversalStopReason.Canceled,
                 ),
             ),
-            statusMessage = "Search canceled · scanned ${running.scannedNodes}",
+            statusMessage = StatusMessage.SearchCanceled(running.scannedNodes),
         )
     }
 
@@ -581,19 +584,20 @@ class YggdrasilStateHolder(
         val request = ZNodeExportRequest(rootPath = path, includeAcl = includeAcl, dataEncoding = dataEncoding)
         val service = ZNodeWorkflowService(repository)
 
-        state = state.copy(exportState = ZNodeExportState.Running(request), statusMessage = "Exporting $path")
+        state =
+            state.copy(exportState = ZNodeExportState.Running(request), statusMessage = StatusMessage.Exporting(path))
         when (val result = service.exportSubtree(profile, request)) {
             is OperationResult.Success -> {
                 state = state.copy(
                     exportState = ZNodeExportState.Loaded(result.value),
-                    statusMessage = "Exported ${result.value.exportedNodes} node${if (result.value.exportedNodes == 1) "" else "s"} from $path",
+                    statusMessage = StatusMessage.Exported(result.value.exportedNodes, path),
                 )
             }
 
             is OperationResult.Failure -> {
                 state = state.copy(
                     exportState = ZNodeExportState.Failed(request, result.error),
-                    statusMessage = result.error.message,
+                    statusMessage = StatusMessage.Error(result.error),
                 )
             }
         }
@@ -606,16 +610,16 @@ class YggdrasilStateHolder(
 
         state = state.copy(
             importState = ZNodeImportState.Running(request),
-            statusMessage = if (request.dryRun) "Planning import" else "Importing znodes",
+            statusMessage = if (request.dryRun) StatusMessage.PlanningImport else StatusMessage.ImportingZNodes,
         )
         when (val result = service.importSubtree(profile, request)) {
             is OperationResult.Success -> {
                 state = state.copy(
                     importState = ZNodeImportState.Loaded(result.value),
                     statusMessage = if (request.dryRun) {
-                        "Import dry run planned ${result.value.operations.size} operation${if (result.value.operations.size == 1) "" else "s"}"
+                        StatusMessage.ImportDryRunPlanned(result.value.operations.size)
                     } else {
-                        "Import completed · applied ${result.value.appliedCount}, failed ${result.value.failureCount}"
+                        StatusMessage.ImportCompleted(result.value.appliedCount, result.value.failureCount)
                     },
                 )
                 state.selectedPath?.let { refreshSelectedPath() }
@@ -624,7 +628,7 @@ class YggdrasilStateHolder(
             is OperationResult.Failure -> {
                 state = state.copy(
                     importState = ZNodeImportState.Failed(request, result.error),
-                    statusMessage = result.error.message,
+                    statusMessage = StatusMessage.Error(result.error),
                 )
             }
         }
@@ -642,25 +646,28 @@ class YggdrasilStateHolder(
 
         state = state.copy(
             compareState = ZNodeCompareState.Running(request),
-            statusMessage = "Comparing ${leftProfile.name} and ${rightProfile.name}",
+            statusMessage = StatusMessage.ComparingConnections(leftProfile.name, rightProfile.name),
         )
         when (val result = service.compare(leftProfile, rightProfile, request) { scanned ->
             state = state.copy(
                 compareState = ZNodeCompareState.Running(request, scanned),
-                statusMessage = "Comparing trees · scanned $scanned",
+                statusMessage = StatusMessage.ComparingProgress(scanned),
             )
         }) {
             is OperationResult.Success -> {
                 state = state.copy(
                     compareState = ZNodeCompareState.Loaded(result.value),
-                    statusMessage = "Compare found ${result.value.differences.size} difference${if (result.value.differences.size == 1) "" else "s"} · scanned ${result.value.scannedNodes}",
+                    statusMessage = StatusMessage.CompareFound(
+                        result.value.differences.size,
+                        result.value.scannedNodes
+                    ),
                 )
             }
 
             is OperationResult.Failure -> {
                 state = state.copy(
                     compareState = ZNodeCompareState.Failed(request, result.error),
-                    statusMessage = result.error.message,
+                    statusMessage = StatusMessage.Error(result.error),
                 )
             }
         }
@@ -677,7 +684,7 @@ class YggdrasilStateHolder(
                     stopReason = ZNodeTraversalStopReason.Canceled,
                 ),
             ),
-            statusMessage = "Compare canceled · scanned ${running.scannedNodes}",
+            statusMessage = StatusMessage.CompareCanceled(running.scannedNodes),
         )
     }
 
@@ -691,13 +698,13 @@ class YggdrasilStateHolder(
 
         state = state.copy(
             zkCliState = ZkCliState.Running(request),
-            statusMessage = "Running zk command",
+            statusMessage = StatusMessage.RunningZkCommand,
         )
         when (val result = service.execute(profile, request)) {
             is OperationResult.Success -> {
                 state = state.copy(
                     zkCliState = ZkCliState.Loaded(result.value),
-                    statusMessage = "ZK command completed",
+                    statusMessage = StatusMessage.ZkCommandCompleted,
                 )
                 refreshAfterZkCliCommand(request.commandLine)
             }
@@ -705,7 +712,7 @@ class YggdrasilStateHolder(
             is OperationResult.Failure -> {
                 state = state.copy(
                     zkCliState = ZkCliState.Failed(request, result.error),
-                    statusMessage = result.error.message,
+                    statusMessage = StatusMessage.Error(result.error),
                 )
             }
         }
@@ -721,7 +728,7 @@ class YggdrasilStateHolder(
     suspend fun processWatchEvent(event: ZNodeWatchEvent) {
         state = state.copy(
             watchState = state.watchState.copy(lastEvent = event, error = null),
-            statusMessage = "Watch event ${event.type} on ${event.path}",
+            statusMessage = StatusMessage.WatchEvent(event.type.name, event.path),
         )
         refreshSelectedPath()
     }
@@ -729,7 +736,7 @@ class YggdrasilStateHolder(
     fun reportWatchError(error: AppError) {
         state = state.copy(
             watchState = state.watchState.copy(error = error),
-            statusMessage = error.message,
+            statusMessage = StatusMessage.Error(error),
         )
     }
 
@@ -739,20 +746,20 @@ class YggdrasilStateHolder(
             nodeDetail = ZNodeDetailState.None,
             deletePreview = DeletePreviewState.None,
             watchState = ZNodeWatchState(),
-            statusMessage = "Selection cleared",
+            statusMessage = StatusMessage.SelectionCleared,
         )
     }
 
     fun reportError(error: AppError) {
-        state = state.copy(statusMessage = error.message)
+        state = state.copy(statusMessage = StatusMessage.Error(error))
     }
 
     suspend fun updateSettings(settings: AppSettings) {
-        state = state.copy(settings = settings, statusMessage = "Settings updated")
+        state = state.copy(settings = settings, statusMessage = StatusMessage.SettingsUpdated)
         val repository = appSettingsRepository ?: return
         when (val result = repository.saveSettings(settings)) {
             is OperationResult.Success -> Unit
-            is OperationResult.Failure -> state = state.copy(statusMessage = result.error.message)
+            is OperationResult.Failure -> state = state.copy(statusMessage = StatusMessage.Error(result.error))
         }
     }
 
@@ -787,7 +794,7 @@ class YggdrasilStateHolder(
             } else {
                 ZNodeDetailState.Loading(path)
             },
-            statusMessage = "Loading detail for $path",
+            statusMessage = StatusMessage.LoadingDetail(path),
         )
 
         when (val result = repository.loadDetail(profile, path)) {
@@ -802,7 +809,7 @@ class YggdrasilStateHolder(
                 state = state.copy(
                     nodeSelection = NodeSelectionState.Failed(path, result.error),
                     nodeDetail = ZNodeDetailState.Failed(path, result.error),
-                    statusMessage = result.error.message,
+                    statusMessage = StatusMessage.Error(result.error),
                 )
             }
         }

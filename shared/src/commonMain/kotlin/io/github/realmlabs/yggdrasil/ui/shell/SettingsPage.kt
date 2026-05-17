@@ -15,10 +15,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.realmlabs.yggdrasil.application.state.AppSettings
-import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
-import io.github.realmlabs.yggdrasil.application.state.TerminalThemePreference
-import io.github.realmlabs.yggdrasil.application.state.ThemePreference
+import io.github.realmlabs.yggdrasil.application.state.*
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 @Composable
 fun SettingsPage(
@@ -27,6 +27,7 @@ fun SettingsPage(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = Res.string
     var search by remember { mutableStateOf("") }
     var selectedPage by remember { mutableStateOf(SettingsSection.General) }
     val pages = SettingsSection.entries.filter { section ->
@@ -62,7 +63,10 @@ fun SettingsPage(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 if (pages.isEmpty()) {
-                    EmptyPanelMessage("No matching settings", "Try a different keyword.")
+                    EmptyPanelMessage(
+                        stringResource(strings.settings_no_match_title),
+                        stringResource(strings.settings_no_match_body),
+                    )
                 } else {
                     SettingsContentHeader(selectedPage)
                     when (selectedPage) {
@@ -86,31 +90,32 @@ fun SettingsPage(
 
 @Composable
 private fun GeneralSettings(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
-    SettingsCard(title = "Startup") {
+    val strings = Res.string
+    SettingsCard(title = stringResource(strings.settings_startup)) {
         SettingSwitchRow(
-            label = "Select the root znode when a connection opens",
+            label = stringResource(strings.settings_select_root_on_open),
             checked = settings.startAtRoot,
             onCheckedChange = { onSettingsChange(settings.copy(startAtRoot = it)) },
         )
         SettingSwitchRow(
-            label = "Open inspector expanded by default",
+            label = stringResource(strings.settings_inspector_expanded),
             checked = settings.inspectorExpandedByDefault,
             onCheckedChange = { onSettingsChange(settings.copy(inspectorExpandedByDefault = it)) },
         )
     }
-    SettingsCard(title = "Search defaults") {
+    SettingsCard(title = stringResource(strings.settings_search_defaults)) {
         SettingSwitchRow(
-            label = "Search znode paths",
+            label = stringResource(strings.settings_search_paths),
             checked = settings.defaultSearchPath,
             onCheckedChange = { onSettingsChange(settings.copy(defaultSearchPath = it)) },
         )
         SettingSwitchRow(
-            label = "Search znode data",
+            label = stringResource(strings.settings_search_data),
             checked = settings.defaultSearchData,
             onCheckedChange = { onSettingsChange(settings.copy(defaultSearchData = it)) },
         )
         Text(
-            text = "These defaults are used by the top bar search.",
+            text = stringResource(strings.settings_search_defaults_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -119,31 +124,41 @@ private fun GeneralSettings(settings: AppSettings, onSettingsChange: (AppSetting
 
 @Composable
 private fun AppearanceSettings(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
-    SettingsCard(title = "Theme") {
+    val strings = Res.string
+    SettingsCard(title = stringResource(strings.settings_language_card)) {
         SettingSegmentRow(
-            label = "Application theme",
-            values = ThemePreference.entries.map { it.name },
-            selected = settings.themePreference.name,
-            onSelect = { onSettingsChange(settings.copy(themePreference = ThemePreference.valueOf(it))) },
+            label = stringResource(strings.settings_application_language),
+            options = AppLanguage.entries.map { SettingOption(it, it.label()) },
+            selected = settings.language,
+            onSelect = { onSettingsChange(settings.copy(language = it)) },
+        )
+    }
+    SettingsCard(title = stringResource(strings.settings_theme_card)) {
+        SettingSegmentRow(
+            label = stringResource(strings.settings_application_theme),
+            options = ThemePreference.entries.map { SettingOption(it, it.label()) },
+            selected = settings.themePreference,
+            onSelect = { onSettingsChange(settings.copy(themePreference = it)) },
         )
     }
 }
 
 @Composable
 private fun ExplorerSettings(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
-    SettingsCard(title = "Znode Explorer") {
+    val strings = Res.string
+    SettingsCard(title = stringResource(strings.settings_explorer)) {
         SettingSwitchRow(
-            label = "Automatically watch the selected znode",
+            label = stringResource(strings.settings_auto_watch),
             checked = settings.autoWatchSelectedNode,
             onCheckedChange = { onSettingsChange(settings.copy(autoWatchSelectedNode = it)) },
         )
         SettingSwitchRow(
-            label = "Open inspector expanded by default",
+            label = stringResource(strings.settings_inspector_expanded),
             checked = settings.inspectorExpandedByDefault,
             onCheckedChange = { onSettingsChange(settings.copy(inspectorExpandedByDefault = it)) },
         )
         Text(
-            text = "Tree loading and node refresh behavior are driven by the active ZooKeeper connection.",
+            text = stringResource(strings.settings_tree_behavior_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -152,41 +167,40 @@ private fun ExplorerSettings(settings: AppSettings, onSettingsChange: (AppSettin
 
 @Composable
 private fun TerminalSettings(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
+    val strings = Res.string
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        SettingsCard(title = "Embedded zkCli", modifier = Modifier.weight(1f)) {
+        SettingsCard(title = stringResource(strings.settings_embedded_zkcli), modifier = Modifier.weight(1f)) {
             SettingSwitchRow(
-                label = "Enable embedded terminal panel",
+                label = stringResource(strings.settings_terminal_enable),
                 checked = settings.embeddedTerminalEnabled,
                 onCheckedChange = { onSettingsChange(settings.copy(embeddedTerminalEnabled = it)) },
             )
             SettingSwitchRow(
-                label = "Open terminal expanded by default",
+                label = stringResource(strings.settings_terminal_expanded),
                 checked = settings.terminalExpandedByDefault,
                 onCheckedChange = { onSettingsChange(settings.copy(terminalExpandedByDefault = it)) },
             )
             SettingSwitchRow(
-                label = "Clear output after switching connection",
+                label = stringResource(strings.settings_terminal_clear_on_connection),
                 checked = settings.clearTerminalOnConnectionChange,
                 onCheckedChange = { onSettingsChange(settings.copy(clearTerminalOnConnectionChange = it)) },
             )
         }
-        SettingsCard(title = "Terminal appearance", modifier = Modifier.weight(1f)) {
+        SettingsCard(title = stringResource(strings.settings_terminal_appearance), modifier = Modifier.weight(1f)) {
             SettingSegmentRow(
-                label = "Font size",
+                label = stringResource(strings.settings_font_size),
                 values = listOf("12", "13", "14", "15"),
                 selected = settings.terminalFontSize.toString(),
                 onSelect = { onSettingsChange(settings.copy(terminalFontSize = it.toInt())) },
             )
             SettingSegmentRow(
-                label = "Theme",
-                values = TerminalThemePreference.entries.map { it.name },
-                selected = settings.terminalThemePreference.name,
-                onSelect = {
-                    onSettingsChange(settings.copy(terminalThemePreference = TerminalThemePreference.valueOf(it)))
-                },
+                label = stringResource(strings.settings_theme),
+                options = TerminalThemePreference.entries.map { SettingOption(it, it.label()) },
+                selected = settings.terminalThemePreference,
+                onSelect = { onSettingsChange(settings.copy(terminalThemePreference = it)) },
             )
             SettingSwitchRow(
-                label = "Show command timestamps",
+                label = stringResource(strings.settings_show_timestamps),
                 checked = settings.terminalShowTimestamps,
                 onCheckedChange = { onSettingsChange(settings.copy(terminalShowTimestamps = it)) },
             )
@@ -197,9 +211,10 @@ private fun TerminalSettings(settings: AppSettings, onSettingsChange: (AppSettin
 
 @Composable
 private fun SafetySettings(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
-    SettingsCard(title = "Destructive operations") {
+    val strings = Res.string
+    SettingsCard(title = stringResource(strings.settings_destructive_operations)) {
         SettingSwitchRow(
-            label = "Require full-path confirmation for dangerous deletes",
+            label = stringResource(strings.settings_require_delete_confirmation),
             checked = settings.requireDangerousConfirmation,
             onCheckedChange = { onSettingsChange(settings.copy(requireDangerousConfirmation = it)) },
         )
@@ -209,12 +224,13 @@ private fun SafetySettings(settings: AppSettings, onSettingsChange: (AppSettings
 
 @Composable
 private fun ShortcutsSettings() {
-    SettingsCard(title = "Keyboard shortcuts") {
-        ShortcutRow("Open command workflow", "⌘ Command")
-        ShortcutRow("Run top bar search", "Search button")
-        ShortcutRow("Clear terminal output", "Clear")
+    val strings = Res.string
+    SettingsCard(title = stringResource(strings.settings_keyboard_shortcuts)) {
+        ShortcutRow(stringResource(strings.settings_open_command_workflow), "⌘ Command")
+        ShortcutRow(stringResource(strings.settings_run_top_search), stringResource(strings.settings_search_button))
+        ShortcutRow(stringResource(strings.settings_clear_terminal), stringResource(strings.common_clear))
         Text(
-            text = "Shortcut editing is not available yet, so editable controls were removed from this page.",
+            text = stringResource(strings.settings_shortcut_editing_unavailable),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -227,6 +243,7 @@ private fun SettingsHeader(
     onSearchChange: (String) -> Unit,
     onClose: () -> Unit,
 ) {
+    val strings = Res.string
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
         Spacer(Modifier.height(ShellMetrics.TitleBarTopInset))
         Row(
@@ -241,7 +258,7 @@ private fun SettingsHeader(
             ShellTextInput(
                 value = search,
                 onValueChange = onSearchChange,
-                placeholder = "Search settings...",
+                placeholder = stringResource(strings.settings_search_placeholder),
                 modifier = Modifier.width(360.dp),
                 leading = {
                     Icon(
@@ -257,7 +274,7 @@ private fun SettingsHeader(
                 modifier = Modifier.width(96.dp).height(ShellMetrics.ControlHeight),
                 shape = ShellMetrics.FieldShape,
             ) {
-                Text("Close")
+                Text(stringResource(strings.common_close))
             }
         }
     }
@@ -270,6 +287,7 @@ private fun SettingsSidebar(
     onSelect: (SettingsSection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = Res.string
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface)
@@ -300,7 +318,7 @@ private fun SettingsSidebar(
                     tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = item.title,
+                    text = stringResource(item.titleRes),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -314,7 +332,11 @@ private fun SettingsSidebar(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("v1.12.0", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             StatusDot(ConnectionRuntimeStatus.Connected)
-            Text("Local settings", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text(
+                stringResource(strings.settings_local_settings),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
@@ -337,8 +359,16 @@ private fun SettingsContentHeader(section: SettingsSection) {
             )
         }
         Column {
-            Text(section.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            Text(section.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(section.titleRes),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                stringResource(section.descriptionRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -416,6 +446,60 @@ private fun SettingSegmentRow(
     }
 }
 
+private data class SettingOption<T>(
+    val value: T,
+    val label: String,
+)
+
+@Composable
+private fun <T> SettingSegmentRow(
+    label: String,
+    options: List<SettingOption<T>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Row(
+            modifier = Modifier
+                .width(260.dp)
+                .height(32.dp)
+                .clip(ShellMetrics.FieldShape)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), ShellMetrics.FieldShape),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            options.forEachIndexed { index, option ->
+                val active = option.value == selected
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .clickable { onSelect(option.value) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        option.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                    )
+                }
+                if (index < options.lastIndex) {
+                    Box(
+                        Modifier.width(1.dp).fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TerminalPreview(settings: AppSettings) {
     val background = when (settings.terminalThemePreference) {
@@ -455,6 +539,7 @@ private fun TerminalPreview(settings: AppSettings) {
 
 @Composable
 private fun DangerousCommandBox(requireConfirmation: Boolean) {
+    val strings = Res.string
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -465,16 +550,16 @@ private fun DangerousCommandBox(requireConfirmation: Boolean) {
     ) {
         Text(
             if (requireConfirmation) {
-                "Recursive and multi-node deletes require typing the full root path before execution."
+                stringResource(strings.settings_delete_confirmation_on)
             } else {
-                "Delete preview is still required, but full-path confirmation is skipped."
+                stringResource(strings.settings_delete_confirmation_off)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        DangerousCommandRow("delete", "Delete a znode")
-        DangerousCommandRow("rmr", "Recursively delete a znode and its children")
-        DangerousCommandRow("setAcl", "Modify ACL permissions")
+        DangerousCommandRow("delete", stringResource(strings.settings_delete_command_desc))
+        DangerousCommandRow("rmr", stringResource(strings.settings_rmr_command_desc))
+        DangerousCommandRow("setAcl", stringResource(strings.settings_set_acl_command_desc))
     }
 }
 
@@ -504,6 +589,7 @@ private fun ShortcutRow(label: String, shortcut: String) {
 
 @Composable
 private fun SettingsFooter(onRestoreDefaults: () -> Unit, onClose: () -> Unit) {
+    val strings = Res.string
     Row(
         modifier = Modifier.fillMaxWidth().height(72.dp).background(MaterialTheme.colorScheme.surface).padding(horizontal = 32.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -514,7 +600,7 @@ private fun SettingsFooter(onRestoreDefaults: () -> Unit, onClose: () -> Unit) {
             modifier = Modifier.width(180.dp).height(ShellMetrics.ControlHeight),
             shape = ShellMetrics.FieldShape,
         ) {
-            Text("Restore Defaults")
+            Text(stringResource(strings.common_restore_defaults))
         }
         Spacer(Modifier.width(16.dp))
         Button(
@@ -522,54 +608,90 @@ private fun SettingsFooter(onRestoreDefaults: () -> Unit, onClose: () -> Unit) {
             modifier = Modifier.width(98.dp).height(ShellMetrics.ControlHeight),
             shape = ShellMetrics.FieldShape,
         ) {
-            Text("Done")
+            Text(stringResource(strings.common_done))
         }
     }
 }
 
 private enum class SettingsSection(
     val icon: ImageVector,
-    val title: String,
-    val description: String,
+    val titleRes: StringResource,
+    val descriptionRes: StringResource,
     private val keywords: List<String>,
 ) {
     General(
         Icons.Outlined.Settings,
-        "General",
-        "Startup behavior and top-level defaults.",
-        listOf("startup", "search", "inspector")
+        Res.string.settings_general,
+        Res.string.settings_general_description,
+        listOf("startup", "search", "inspector", "通用", "启动", "搜索", "检查器")
     ),
-    Appearance(Icons.Outlined.Palette, "Appearance", "Application color theme.", listOf("theme", "light", "dark")),
+    Appearance(
+        Icons.Outlined.Palette,
+        Res.string.settings_appearance,
+        Res.string.settings_appearance_description,
+        listOf("language", "theme", "light", "dark", "语言", "主题"),
+    ),
     Explorer(
         Icons.Outlined.Storage,
-        "Znode Explorer",
-        "Tree, inspector, and watch behavior.",
-        listOf("znode", "tree", "watch", "inspector")
+        Res.string.settings_explorer,
+        Res.string.settings_explorer_description,
+        listOf("znode", "tree", "watch", "inspector", "浏览器", "树", "监听", "检查器")
     ),
     Terminal(
         Icons.Outlined.Code,
-        "zkCli & Terminal",
-        "Embedded zkCli behavior and terminal display.",
-        listOf("zkcli", "terminal", "font", "timestamp")
+        Res.string.settings_terminal,
+        Res.string.settings_terminal_description,
+        listOf("zkcli", "terminal", "font", "timestamp", "终端", "字号", "时间戳")
     ),
     Safety(
         Icons.Outlined.Security,
-        "Safety",
-        "Confirmation behavior for destructive operations.",
-        listOf("delete", "dangerous", "confirmation", "acl")
+        Res.string.settings_safety,
+        Res.string.settings_safety_description,
+        listOf("delete", "dangerous", "confirmation", "acl", "安全", "删除", "确认")
     ),
     Shortcuts(
         Icons.Outlined.Keyboard,
-        "Shortcuts",
-        "Currently available keyboard and toolbar actions.",
-        listOf("keyboard", "shortcut", "command")
+        Res.string.settings_shortcuts,
+        Res.string.settings_shortcuts_description,
+        listOf("keyboard", "shortcut", "command", "快捷键", "命令")
     ),
     ;
 
+    @Composable
     fun matches(query: String): Boolean {
         val needle = query.trim().lowercase()
-        return title.lowercase().contains(needle) ||
-            description.lowercase().contains(needle) ||
+        return stringResource(titleRes).lowercase().contains(needle) ||
+                stringResource(descriptionRes).lowercase().contains(needle) ||
+                name.lowercase().contains(needle) ||
             keywords.any { it.contains(needle) }
+    }
+}
+
+@Composable
+private fun AppLanguage.label(): String {
+    val strings = Res.string
+    return when (this) {
+        AppLanguage.English -> stringResource(strings.language_english)
+        AppLanguage.Chinese -> stringResource(strings.language_chinese)
+    }
+}
+
+@Composable
+private fun ThemePreference.label(): String {
+    val strings = Res.string
+    return when (this) {
+        ThemePreference.System -> stringResource(strings.theme_system)
+        ThemePreference.Light -> stringResource(strings.theme_light)
+        ThemePreference.Dark -> stringResource(strings.theme_dark)
+    }
+}
+
+@Composable
+private fun TerminalThemePreference.label(): String {
+    val strings = Res.string
+    return when (this) {
+        TerminalThemePreference.Auto -> stringResource(strings.terminal_theme_auto)
+        TerminalThemePreference.Light -> stringResource(strings.theme_light)
+        TerminalThemePreference.Dark -> stringResource(strings.theme_dark)
     }
 }

@@ -20,6 +20,8 @@ import io.github.realmlabs.yggdrasil.application.state.ZNodeDetailState
 import io.github.realmlabs.yggdrasil.domain.model.ZNodeAcl
 import io.github.realmlabs.yggdrasil.domain.model.ZNodePermission
 import io.github.realmlabs.yggdrasil.domain.model.ZNodeStat
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 @Composable
 fun InspectorPane(
@@ -29,6 +31,7 @@ fun InspectorPane(
     onEditAcl: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = Res.string
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface)
@@ -43,7 +46,7 @@ fun InspectorPane(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
-                    contentDescription = "Expand inspector",
+                    contentDescription = stringResource(strings.inspector_expand),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -59,7 +62,7 @@ fun InspectorPane(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Inspector",
+                text = stringResource(strings.inspector_title),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -70,7 +73,7 @@ fun InspectorPane(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                    contentDescription = "Collapse inspector",
+                    contentDescription = stringResource(strings.inspector_collapse),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -82,12 +85,15 @@ fun InspectorPane(
         ) {
             val detail = (state.nodeDetail as? ZNodeDetailState.Loaded)?.detail
             InspectorSection(
-                title = "Stat",
+                title = stringResource(strings.inspector_stat),
                 rows = detail?.stat?.toInspectorRows() ?: emptyStatRows(),
             )
             InspectorSection(
-                title = "ACL",
-                rows = detail?.acl?.toInspectorRows() ?: listOf("Entries" to "-", "Mode" to state.modeLabel()),
+                title = stringResource(strings.inspector_acl),
+                rows = detail?.acl?.toInspectorRows() ?: listOf(
+                    stringResource(strings.inspector_entries) to "-",
+                    stringResource(strings.inspector_mode) to state.modeLabel(),
+                ),
                 trailing = {
                     OutlinedButton(
                         onClick = onEditAcl,
@@ -98,7 +104,7 @@ fun InspectorPane(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Edit,
-                            contentDescription = "Edit ACL",
+                            contentDescription = stringResource(strings.inspector_edit_acl),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp),
                         )
@@ -106,15 +112,16 @@ fun InspectorPane(
                 },
             )
             InspectorSection(
-                title = "Watch",
+                title = stringResource(strings.inspector_watch),
                 rows = listOf(
-                    "State" to when {
-                        state.watchState.error != null -> "Failed"
-                        state.watchState.isRegistered -> "Registered"
-                        else -> "Not registered"
+                    stringResource(strings.inspector_state) to when {
+                        state.watchState.error != null -> stringResource(strings.inspector_state_failed)
+                        state.watchState.isRegistered -> stringResource(strings.inspector_state_registered)
+                        else -> stringResource(strings.inspector_state_not_registered)
                     },
-                    "Path" to (state.watchState.watchedPath?.value ?: "-"),
-                    "Last event" to (state.watchState.lastEvent?.let { "${it.type} ${it.path}" } ?: "-"),
+                    stringResource(strings.common_path) to (state.watchState.watchedPath?.value ?: "-"),
+                    stringResource(strings.inspector_last_event) to (state.watchState.lastEvent?.let { "${it.type} ${it.path}" }
+                        ?: "-"),
                 ),
             )
         }
@@ -164,50 +171,59 @@ private fun InspectorSection(
     }
 }
 
-private fun ZNodeStat.toInspectorRows(): List<Pair<String, String>> =
-    listOf(
-        "Data size" to "$dataLength bytes",
-        "Data version" to version.toString(),
+@Composable
+private fun ZNodeStat.toInspectorRows(): List<Pair<String, String>> {
+    val strings = Res.string
+    return listOf(
+        stringResource(strings.inspector_data_size) to stringResource(strings.inspector_data_size_bytes, dataLength),
+        stringResource(strings.inspector_data_version) to version.toString(),
         "cversion" to cversion.toString(),
         "aversion" to aversion.toString(),
-        "Children" to numChildren.toString(),
+        stringResource(strings.inspector_children) to numChildren.toString(),
         "ctime" to ctimeMillis.toString(),
         "mtime" to mtimeMillis.toString(),
-        "Ephemeral owner" to ephemeralOwner.toZxidLabel(),
+        stringResource(strings.inspector_ephemeral_owner) to ephemeralOwner.toZxidLabel(),
         "czxid" to czxid.toZxidLabel(),
         "mzxid" to mzxid.toZxidLabel(),
         "pzxid" to pzxid.toZxidLabel(),
     )
+}
 
-private fun emptyStatRows(): List<Pair<String, String>> =
-    listOf(
-        "Data size" to "-",
-        "Data version" to "-",
+@Composable
+private fun emptyStatRows(): List<Pair<String, String>> {
+    val strings = Res.string
+    return listOf(
+        stringResource(strings.inspector_data_size) to "-",
+        stringResource(strings.inspector_data_version) to "-",
         "cversion" to "-",
         "aversion" to "-",
-        "Children" to "-",
+        stringResource(strings.inspector_children) to "-",
         "ctime" to "-",
         "mtime" to "-",
-        "Ephemeral owner" to "-",
+        stringResource(strings.inspector_ephemeral_owner) to "-",
         "czxid" to "-",
         "mzxid" to "-",
         "pzxid" to "-",
     )
+}
 
-private fun List<ZNodeAcl>.toInspectorRows(): List<Pair<String, String>> =
-    buildList {
-        add("Entries" to size.toString())
+@Composable
+private fun List<ZNodeAcl>.toInspectorRows(): List<Pair<String, String>> {
+    val strings = Res.string
+    return buildList {
+        add(stringResource(strings.inspector_entries) to size.toString())
         if (isEmpty()) {
-            add("Permissions" to "-")
+            add(stringResource(strings.inspector_permissions) to "-")
             return@buildList
         }
         this@toInspectorRows.take(4).forEachIndexed { index, acl ->
             add("ACL ${index + 1}" to "${acl.scheme}:${acl.id} ${acl.permissions.toPermissionLabel()}")
         }
         if (size > 4) {
-            add("More" to "${size - 4} hidden")
+            add(stringResource(strings.inspector_more) to stringResource(strings.inspector_hidden_count, size - 4))
         }
     }
+}
 
 private fun Set<ZNodePermission>.toPermissionLabel(): String =
     listOfNotNull(
@@ -221,5 +237,12 @@ private fun Set<ZNodePermission>.toPermissionLabel(): String =
 private fun Long.toZxidLabel(): String =
     if (this == 0L) "0" else "0x${toString(16)}"
 
-private fun AppState.modeLabel(): String =
-    if (isReadOnly) "Read only" else "Read/write"
+@Composable
+private fun AppState.modeLabel(): String {
+    val strings = Res.string
+    return if (isReadOnly) {
+        stringResource(strings.mode_read_only_spaced)
+    } else {
+        stringResource(strings.mode_read_write_spaced)
+    }
+}

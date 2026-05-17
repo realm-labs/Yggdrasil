@@ -25,6 +25,8 @@ import io.github.realmlabs.yggdrasil.domain.model.ZNodeDataFormat
 import io.github.realmlabs.yggdrasil.domain.model.ZNodeDetail
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 @Composable
 fun NodeDetailPane(
@@ -34,6 +36,7 @@ fun NodeDetailPane(
     onClearSelection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = Res.string
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface)
@@ -41,13 +44,13 @@ fun NodeDetailPane(
     ) {
         when (val detailState = state.nodeDetail) {
             ZNodeDetailState.None -> EmptyPanelMessage(
-                title = "No znode selected",
-                body = "Choose a path from the tree to inspect data, stat, and ACL details.",
+                title = stringResource(strings.node_no_selected_title),
+                body = stringResource(strings.node_no_selected_body),
             )
 
             is ZNodeDetailState.Loading -> EmptyPanelMessage(
-                title = "Loading ${detailState.path}",
-                body = "The node detail request is in progress.",
+                title = stringResource(strings.node_loading_title, detailState.path.value),
+                body = stringResource(strings.node_loading_body),
             )
 
             is ZNodeDetailState.Loaded -> NodeDataViewer(
@@ -59,8 +62,8 @@ fun NodeDetailPane(
             )
 
             is ZNodeDetailState.Failed -> EmptyPanelMessage(
-                title = "Could not load ${detailState.path}",
-                body = detailState.error.message,
+                title = stringResource(strings.node_load_failed_title, detailState.path.value),
+                body = detailState.error.localized(),
             )
         }
     }
@@ -74,13 +77,38 @@ private fun NodeDataViewer(
     onClearSelection: () -> Unit,
     onUpdateNodeData: (ByteArray, Int) -> Unit,
 ) {
+    val strings = Res.string
     var selectedFormat by remember(detail.path, detail.stat.version) {
         mutableStateOf(detail.detectedFormat.toViewFormat())
     }
     var editing by remember(detail.path, detail.stat.version) { mutableStateOf(false) }
     var editText by remember(detail.path, detail.stat.version) { mutableStateOf(detail.data.toTextPreview()) }
-    val renderedData = remember(detail.path, detail.stat.version, selectedFormat) {
-        detail.renderData(selectedFormat)
+    val emptyData = stringResource(strings.node_empty_data)
+    val invalidJson = stringResource(strings.node_invalid_json)
+    val truncatedCharsPrefix = stringResource(strings.node_truncated_chars_prefix)
+    val truncatedCharsSuffix = stringResource(strings.node_truncated_chars_suffix)
+    val truncatedBytesPrefix = stringResource(strings.node_truncated_bytes_prefix)
+    val truncatedBytesSuffix = stringResource(strings.node_truncated_bytes_suffix)
+    val renderedData = remember(
+        detail.path,
+        detail.stat.version,
+        selectedFormat,
+        emptyData,
+        invalidJson,
+        truncatedCharsPrefix,
+        truncatedCharsSuffix,
+        truncatedBytesPrefix,
+        truncatedBytesSuffix,
+    ) {
+        detail.renderData(
+            selectedFormat,
+            emptyData,
+            invalidJson,
+            truncatedCharsPrefix,
+            truncatedCharsSuffix,
+            truncatedBytesPrefix,
+            truncatedBytesSuffix,
+        )
     }
 
     Column(
@@ -96,7 +124,7 @@ private fun NodeDataViewer(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            TextButton(onClick = onClearSelection) { Text("Clear") }
+            TextButton(onClick = onClearSelection) { Text(stringResource(strings.common_clear)) }
         }
         DataFormatSegmentedControl(
             selectedFormat = selectedFormat,
@@ -137,7 +165,11 @@ private fun NodeDataViewer(
                             textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                         )
                     } else {
-                        NodeDataText(renderedData = renderedData, format = selectedFormat)
+                        NodeDataText(
+                            renderedData = renderedData,
+                            format = selectedFormat,
+                            invalidJsonPrefix = invalidJson
+                        )
                     }
                 }
             }
@@ -149,7 +181,9 @@ private fun NodeDataViewer(
             ) {
                 Text("${detail.data.size.toDisplaySize()}   UTF-8", style = MaterialTheme.typography.labelMedium)
                 Text(
-                    text = if (selectedFormat == ZNodeDataFormat.Json && !renderedData.startsWith(InvalidJsonPrefix)) "✓ Valid JSON" else "",
+                    text = if (selectedFormat == ZNodeDataFormat.Json && !renderedData.startsWith(invalidJson)) stringResource(
+                        strings.node_valid_json
+                    ) else "",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -162,7 +196,7 @@ private fun NodeDataViewer(
                         },
                         modifier = Modifier.height(ShellMetrics.ControlHeight),
                         shape = ShellMetrics.FieldShape,
-                    ) { Text("Save") }
+                    ) { Text(stringResource(strings.common_save)) }
                     OutlinedButton(
                         onClick = {
                             editing = false
@@ -170,7 +204,7 @@ private fun NodeDataViewer(
                         },
                         modifier = Modifier.height(ShellMetrics.ControlHeight),
                         shape = ShellMetrics.FieldShape,
-                    ) { Text("Cancel") }
+                    ) { Text(stringResource(strings.common_cancel)) }
                 } else {
                     OutlinedButton(
                         onClick = {
@@ -188,14 +222,14 @@ private fun NodeDataViewer(
                             modifier = Modifier.size(16.dp),
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text("Edit")
+                        Text(stringResource(strings.common_edit))
                     }
                     OutlinedButton(
                         onClick = onDeleteNode,
                         enabled = !readOnly,
                         modifier = Modifier.height(ShellMetrics.ControlHeight),
                         shape = ShellMetrics.FieldShape,
-                    ) { Text("Delete") }
+                    ) { Text(stringResource(strings.common_delete)) }
                 }
             }
         }
@@ -206,10 +240,11 @@ private fun NodeDataViewer(
 private fun NodeDataText(
     renderedData: String,
     format: ZNodeDataFormat,
+    invalidJsonPrefix: String,
 ) {
     val textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
     SelectionContainer {
-        if (format == ZNodeDataFormat.Json && !renderedData.startsWith(InvalidJsonPrefix)) {
+        if (format == ZNodeDataFormat.Json && !renderedData.startsWith(invalidJsonPrefix)) {
             Text(
                 text = highlightJson(
                     json = renderedData,
@@ -238,10 +273,11 @@ private fun DataFormatSegmentedControl(
     selectedFormat: ZNodeDataFormat,
     onSelectFormat: (ZNodeDataFormat) -> Unit,
 ) {
+    val strings = Res.string
     val items = listOf(
-        ZNodeDataFormat.Text to "Text",
-        ZNodeDataFormat.Json to "JSON",
-        ZNodeDataFormat.Hex to "Hex",
+        ZNodeDataFormat.Text to stringResource(strings.node_format_text),
+        ZNodeDataFormat.Json to stringResource(strings.node_format_json),
+        ZNodeDataFormat.Hex to stringResource(strings.node_format_hex),
     )
     Row(
         modifier = Modifier
@@ -297,22 +333,34 @@ private fun ZNodeDataFormat.toViewFormat(): ZNodeDataFormat =
         ZNodeDataFormat.Properties -> ZNodeDataFormat.Text
     }
 
-private fun ZNodeDetail.renderData(format: ZNodeDataFormat): String {
-    if (data.isEmpty()) return "(empty data)"
+private fun ZNodeDetail.renderData(
+    format: ZNodeDataFormat,
+    emptyData: String,
+    invalidJson: String,
+    truncatedCharsPrefix: String,
+    truncatedCharsSuffix: String,
+    truncatedBytesPrefix: String,
+    truncatedBytesSuffix: String,
+): String {
+    if (data.isEmpty()) return emptyData
 
     return when (format) {
-        ZNodeDataFormat.Json -> renderJsonData()
-        ZNodeDataFormat.Hex -> data.toHexPreview()
-        else -> data.toTextPreview()
+        ZNodeDataFormat.Json -> renderJsonData(invalidJson, truncatedCharsPrefix, truncatedCharsSuffix)
+        ZNodeDataFormat.Hex -> data.toHexPreview(truncatedBytesPrefix, truncatedBytesSuffix)
+        else -> data.toTextPreview(truncatedCharsPrefix, truncatedCharsSuffix)
     }
 }
 
-private fun ZNodeDetail.renderJsonData(): String {
-    val text = data.toTextPreview()
+private fun ZNodeDetail.renderJsonData(
+    invalidJson: String,
+    truncatedCharsPrefix: String,
+    truncatedCharsSuffix: String,
+): String {
+    val text = data.toTextPreview(truncatedCharsPrefix, truncatedCharsSuffix)
     return try {
         PrettyJson.encodeToString<JsonElement>(PrettyJson.parseToJsonElement(text))
     } catch (_: Exception) {
-        "$InvalidJsonPrefix\n\n$text"
+        "$invalidJson\n\n$text"
     }
 }
 
@@ -426,18 +474,24 @@ private fun String.startsWithLiteral(
     return end == length || !this[end].isLetterOrDigit()
 }
 
-private fun ByteArray.toTextPreview(): String {
+private fun ByteArray.toTextPreview(
+    truncatedPrefix: String = "... truncated ",
+    truncatedSuffix: String = " characters",
+): String {
     val text = decodeToString()
     val preview = text.take(MaxDataPreviewChars)
     val suffix = if (text.length > MaxDataPreviewChars) {
-        "\n\n... truncated ${text.length - MaxDataPreviewChars} characters"
+        "\n\n$truncatedPrefix${text.length - MaxDataPreviewChars}$truncatedSuffix"
     } else {
         ""
     }
     return preview + suffix
 }
 
-private fun ByteArray.toHexPreview(): String {
+private fun ByteArray.toHexPreview(
+    truncatedPrefix: String = "... truncated ",
+    truncatedSuffix: String = " bytes",
+): String {
     val bytes = take(MaxHexPreviewBytes)
     val lines = bytes.chunked(16).mapIndexed { index, chunk ->
         val offset = (index * 16).toString(16).padStart(8, '0')
@@ -447,7 +501,7 @@ private fun ByteArray.toHexPreview(): String {
         "$offset  $hex"
     }
     val suffix = if (size > MaxHexPreviewBytes) {
-        "\n... truncated ${size - MaxHexPreviewBytes} bytes"
+        "\n$truncatedPrefix${size - MaxHexPreviewBytes}$truncatedSuffix"
     } else {
         ""
     }
@@ -459,4 +513,3 @@ private fun Int.toDisplaySize(): String =
 
 private const val MaxDataPreviewChars = 64 * 1024
 private const val MaxHexPreviewBytes = 16 * 1024
-private const val InvalidJsonPrefix = "Invalid JSON"

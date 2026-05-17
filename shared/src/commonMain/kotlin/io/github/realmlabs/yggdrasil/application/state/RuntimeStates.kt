@@ -50,6 +50,54 @@ data class ZNodeWatchState(
         get() = watchedPath != null && error == null
 }
 
+sealed interface StatusMessage {
+    data object Ready : StatusMessage
+    data object LoadingConnections : StatusMessage
+    data object NoSavedConnections : StatusMessage
+    data class LoadedConnections(val count: Int) : StatusMessage
+    data class SelectedConnection(val name: String) : StatusMessage
+    data class SavedConnection(val name: String) : StatusMessage
+    data class UpdatedConnection(val name: String) : StatusMessage
+    data class DeletedConnection(val name: String) : StatusMessage
+    data class TestingConnection(val name: String) : StatusMessage
+    data class ConnectedTo(val name: String) : StatusMessage
+    data class LoadingPath(val path: ZNodePath) : StatusMessage
+    data class LoadedPath(val path: ZNodePath) : StatusMessage
+    data class LoadingChildren(val path: ZNodePath) : StatusMessage
+    data class LoadedChildren(val count: Int, val path: ZNodePath) : StatusMessage
+    data class CreatingNode(val path: ZNodePath) : StatusMessage
+    data class CreatedNode(val path: ZNodePath) : StatusMessage
+    data class SavingData(val path: ZNodePath) : StatusMessage
+    data class SavedData(val path: ZNodePath) : StatusMessage
+    data class PreviewingDelete(val path: ZNodePath) : StatusMessage
+    data class PreviewedDelete(val count: Int) : StatusMessage
+    data class DeletingNode(val path: ZNodePath) : StatusMessage
+    data class DeletedNode(val path: ZNodePath) : StatusMessage
+    data class SavingAcl(val path: ZNodePath) : StatusMessage
+    data class SavedAcl(val path: ZNodePath) : StatusMessage
+    data class SearchingFrom(val path: ZNodePath) : StatusMessage
+    data class SearchingProgress(val path: ZNodePath, val scanned: Int) : StatusMessage
+    data class SearchFound(val hits: Int, val scanned: Int) : StatusMessage
+    data class SearchCanceled(val scanned: Int) : StatusMessage
+    data class Exporting(val path: ZNodePath) : StatusMessage
+    data class Exported(val count: Int, val path: ZNodePath) : StatusMessage
+    data object PlanningImport : StatusMessage
+    data object ImportingZNodes : StatusMessage
+    data class ImportDryRunPlanned(val operations: Int) : StatusMessage
+    data class ImportCompleted(val applied: Int, val failed: Int) : StatusMessage
+    data class ComparingConnections(val left: String, val right: String) : StatusMessage
+    data class ComparingProgress(val scanned: Int) : StatusMessage
+    data class CompareFound(val differences: Int, val scanned: Int) : StatusMessage
+    data class CompareCanceled(val scanned: Int) : StatusMessage
+    data object RunningZkCommand : StatusMessage
+    data object ZkCommandCompleted : StatusMessage
+    data class WatchEvent(val type: String, val path: ZNodePath) : StatusMessage
+    data object SelectionCleared : StatusMessage
+    data object SettingsUpdated : StatusMessage
+    data class LoadingDetail(val path: ZNodePath) : StatusMessage
+    data class Error(val error: AppError) : StatusMessage
+}
+
 sealed interface ZkCliState {
     data object Idle : ZkCliState
     data class Running(val request: ZkCliCommandRequest) : ZkCliState
@@ -97,8 +145,14 @@ enum class TerminalThemePreference {
     Dark,
 }
 
+enum class AppLanguage(val localeTag: String) {
+    English("en"),
+    Chinese("zh-CN"),
+}
+
 @Serializable
 data class AppSettings(
+    val language: AppLanguage = AppLanguage.English,
     val themePreference: ThemePreference = ThemePreference.System,
     val startAtRoot: Boolean = true,
     val autoWatchSelectedNode: Boolean = true,

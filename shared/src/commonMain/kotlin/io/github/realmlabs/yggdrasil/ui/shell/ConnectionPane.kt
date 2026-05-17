@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
 import io.github.realmlabs.yggdrasil.domain.model.*
+import org.jetbrains.compose.resources.stringResource
+import yggdrasil.shared.generated.resources.*
 
 @Composable
 fun ConnectionPane(
@@ -28,22 +30,23 @@ fun ConnectionPane(
     onTestConnection: (ConnectionId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val strings = Res.string
     Panel(
-        title = "Connections",
+        title = stringResource(strings.connection_panel_title),
         modifier = modifier,
     ) {
         if (state.isLoadingConnections) {
             EmptyPanelMessage(
-                title = "Loading connections",
-                body = "Saved connection profiles are being loaded.",
+                title = stringResource(strings.connection_loading_title),
+                body = stringResource(strings.connection_loading_body),
             )
             return@Panel
         }
 
         if (state.connections.isEmpty()) {
             EmptyPanelMessage(
-                title = "No saved connections",
-                body = "Create a ZooKeeper connection to start browsing znodes.",
+                title = stringResource(strings.connection_none_saved),
+                body = stringResource(strings.connection_empty_body),
             )
             return@Panel
         }
@@ -74,6 +77,7 @@ private fun ConnectionRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val strings = Res.string
     val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
     val background = if (selected) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
@@ -114,8 +118,12 @@ private fun ConnectionRow(
         ) {
             Text(
                 text = buildString {
-                    append(if (connection.mode == ConnectionMode.ReadWrite) "Read/write" else "Read only")
-                    if (connection.sshTunnel != null) append(" · SSH tunnel")
+                    append(
+                        if (connection.mode == ConnectionMode.ReadWrite) stringResource(strings.mode_read_write_spaced) else stringResource(
+                            strings.mode_read_only_spaced
+                        )
+                    )
+                    if (connection.sshTunnel != null) append(stringResource(strings.connection_ssh_tunnel_suffix))
                 },
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.labelSmall,
@@ -123,18 +131,20 @@ private fun ConnectionRow(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 ConnectionActionButton(
-                    label = if (status == ConnectionRuntimeStatus.Connecting) "Testing connection" else "Test connection",
+                    label = if (status == ConnectionRuntimeStatus.Connecting) stringResource(strings.connection_testing) else stringResource(
+                        strings.connection_test
+                    ),
                     icon = ConnectionActionIcon.Test,
                     enabled = status != ConnectionRuntimeStatus.Connecting,
                     onClick = onTest,
                 )
                 ConnectionActionButton(
-                    label = "Edit connection",
+                    label = stringResource(strings.connection_edit),
                     icon = ConnectionActionIcon.Edit,
                     onClick = onEdit,
                 )
                 ConnectionActionButton(
-                    label = "Delete connection",
+                    label = stringResource(strings.connection_delete),
                     icon = ConnectionActionIcon.Delete,
                     onClick = onDelete,
                 )
@@ -151,6 +161,7 @@ private fun ConnectionActionButton(
     onClick: () -> Unit,
     enabled: Boolean = true,
 ) {
+    val strings = Res.string
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
@@ -277,6 +288,7 @@ fun ConnectionDialog(
     onDismiss: () -> Unit,
     onSave: (ConnectionProfileDraft) -> Unit,
 ) {
+    val strings = Res.string
     var name by remember(profile?.id) { mutableStateOf(profile?.name.orEmpty()) }
     var connectionString by remember(profile?.id) { mutableStateOf(profile?.connectionString.orEmpty()) }
     var chroot by remember(profile?.id) { mutableStateOf(profile?.chroot?.value.orEmpty()) }
@@ -287,11 +299,27 @@ fun ConnectionDialog(
     var sshUsername by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.username.orEmpty()) }
     var sshIdentityFile by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.identityFile.orEmpty()) }
     var validationMessage by remember { mutableStateOf<String?>(null) }
+    val connectionNameRequired = stringResource(strings.error_connection_name_required)
+    val zkConnectionRequired = stringResource(strings.error_zk_connection_required)
+    val connectionProfileInvalid = stringResource(strings.error_connection_profile_invalid)
+    val sshHostRequired = stringResource(strings.error_ssh_host_required)
+    val sshUsernameRequired = stringResource(strings.error_ssh_username_required)
+    val sshPortInvalid = stringResource(strings.error_ssh_port_invalid)
+    fun validationErrorMessage(error: AppError): String =
+        when (error.message) {
+            "Connection name is required." -> connectionNameRequired
+            "ZooKeeper connection string is required." -> zkConnectionRequired
+            "Connection profile is not valid." -> connectionProfileInvalid
+            "SSH host is required." -> sshHostRequired
+            "SSH username is required." -> sshUsernameRequired
+            "SSH port must be between 1 and 65535." -> sshPortInvalid
+            else -> error.message
+        }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(if (profile == null) "New ZooKeeper connection" else "Edit ZooKeeper connection")
+            Text(if (profile == null) stringResource(strings.connection_new_title) else stringResource(strings.connection_edit_title))
         },
         text = {
             Column(
@@ -303,14 +331,14 @@ fun ConnectionDialog(
                 TextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(strings.connection_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 TextField(
                     value = connectionString,
                     onValueChange = { connectionString = it },
-                    label = { Text("Connection string") },
+                    label = { Text(stringResource(strings.connection_string)) },
                     placeholder = { Text("localhost:2181") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -318,7 +346,7 @@ fun ConnectionDialog(
                 TextField(
                     value = chroot,
                     onValueChange = { chroot = it },
-                    label = { Text("Chroot") },
+                    label = { Text(stringResource(strings.connection_chroot)) },
                     placeholder = { Text("/app") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -329,13 +357,13 @@ fun ConnectionDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     ModeButton(
-                        text = "Read only",
+                        text = stringResource(strings.mode_read_only_spaced),
                         selected = !readWrite,
                         onClick = { readWrite = false },
                         modifier = Modifier.weight(1f),
                     )
                     ModeButton(
-                        text = "Read/write",
+                        text = stringResource(strings.mode_read_write_spaced),
                         selected = readWrite,
                         onClick = { readWrite = true },
                         modifier = Modifier.weight(1f),
@@ -349,10 +377,10 @@ fun ConnectionDialog(
                     FilterChip(
                         selected = sshTunnelEnabled,
                         onClick = { sshTunnelEnabled = !sshTunnelEnabled },
-                        label = { Text("SSH tunnel") },
+                        label = { Text(stringResource(strings.connection_ssh_tunnel)) },
                     )
                     Text(
-                        text = "Forward ZooKeeper through an SSH bastion",
+                        text = stringResource(strings.connection_ssh_description),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -362,14 +390,14 @@ fun ConnectionDialog(
                         TextField(
                             value = sshHost,
                             onValueChange = { sshHost = it },
-                            label = { Text("SSH host") },
+                            label = { Text(stringResource(strings.connection_ssh_host)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
                         TextField(
                             value = sshPort,
                             onValueChange = { sshPort = it.filter(Char::isDigit) },
-                            label = { Text("Port") },
+                            label = { Text(stringResource(strings.connection_ssh_port)) },
                             singleLine = true,
                             modifier = Modifier.width(96.dp),
                         )
@@ -377,15 +405,15 @@ fun ConnectionDialog(
                     TextField(
                         value = sshUsername,
                         onValueChange = { sshUsername = it },
-                        label = { Text("SSH user") },
+                        label = { Text(stringResource(strings.connection_ssh_user)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     TextField(
                         value = sshIdentityFile,
                         onValueChange = { sshIdentityFile = it },
-                        label = { Text("Identity file") },
-                        placeholder = { Text("Optional, uses ssh agent by default") },
+                        label = { Text(stringResource(strings.connection_identity_file)) },
+                        placeholder = { Text(stringResource(strings.connection_identity_placeholder)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -415,16 +443,16 @@ fun ConnectionDialog(
                     )
                     when (val validation = draft.toProfile(ConnectionId("validation"))) {
                         is OperationResult.Success -> onSave(draft)
-                        is OperationResult.Failure -> validationMessage = validation.error.message
+                        is OperationResult.Failure -> validationMessage = validationErrorMessage(validation.error)
                     }
                 },
             ) {
-                Text("Save")
+                Text(stringResource(strings.common_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(strings.common_cancel))
             }
         },
     )

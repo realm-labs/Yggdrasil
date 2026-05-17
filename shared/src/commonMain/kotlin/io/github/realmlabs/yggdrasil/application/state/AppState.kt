@@ -21,7 +21,7 @@ data class AppState(
     val zkCliState: ZkCliState = ZkCliState.Idle,
     val settings: AppSettings = AppSettings(),
     val isLoadingConnections: Boolean = false,
-    val statusMessage: String = "Ready",
+    val statusMessage: StatusMessage = StatusMessage.Ready,
 ) {
     val activeConnection: ConnectionProfile?
         get() = connections.firstOrNull { it.id == activeConnectionId }
