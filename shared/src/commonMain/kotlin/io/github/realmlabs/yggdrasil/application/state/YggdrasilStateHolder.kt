@@ -342,6 +342,16 @@ class YggdrasilStateHolder(
             watchState = ZNodeWatchState(watchedPath = path),
             statusMessage = StatusMessage.LoadingPath(path),
         )
+        path.ancestorPaths().forEach { ancestor ->
+            if (state.znodeChildren[ancestor] !is ZNodeChildrenState.Loaded) {
+                loadChildren(
+                    path = ancestor,
+                    showLoadingState = false,
+                    updateStatus = false,
+                    prefetchVisibleChildren = false,
+                )
+            }
+        }
         loadDetail(path)
         loadChildren(path)
         if (state.nodeSelection is NodeSelectionState.Loading && state.selectedPath == path) {
@@ -886,3 +896,6 @@ class YggdrasilStateHolder(
         }
     }
 }
+
+private fun ZNodePath.ancestorPaths(): List<ZNodePath> =
+    generateSequence(parent) { it.parent }.toList().asReversed()

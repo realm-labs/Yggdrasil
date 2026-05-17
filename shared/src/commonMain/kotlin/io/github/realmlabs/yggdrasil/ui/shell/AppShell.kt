@@ -2,7 +2,6 @@ package io.github.realmlabs.yggdrasil.ui.shell
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -21,6 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.PopupProperties
 import io.github.realmlabs.yggdrasil.application.state.*
 import io.github.realmlabs.yggdrasil.application.workflow.completeZkCliCommandLine
 import io.github.realmlabs.yggdrasil.domain.model.*
@@ -144,11 +144,12 @@ fun AppShell(
                         ZNodeSearchRequest(
                             rootPath = root,
                             query = topSearch,
-                            searchPath = state.settings.defaultSearchPath,
-                            searchData = state.settings.defaultSearchData,
+                            searchPath = true,
+                            searchData = true,
                         ),
                     )
                 },
+                onSelectSearchResult = onSelectPath,
                 onSelectConnection = onSelectConnection,
             )
             Row(Modifier.weight(1f).fillMaxWidth()) {
@@ -315,6 +316,7 @@ private fun YggdrasilTopBar(
     search: String,
     onSearchChange: (String) -> Unit,
     onRunSearch: () -> Unit,
+    onSelectSearchResult: (ZNodePath) -> Unit,
     onSelectConnection: (ConnectionId) -> Unit,
     onNewConnection: () -> Unit,
     onEditConnection: (ConnectionProfile) -> Unit,
@@ -324,6 +326,17 @@ private fun YggdrasilTopBar(
     onCommand: () -> Unit,
 ) {
     val strings = Res.string
+    var searchResultsExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(state.searchState) {
+        if (search.isNotBlank() && state.searchState !is ZNodeSearchState.Idle) {
+            searchResultsExpanded = true
+        }
+    }
+    fun runTopSearch() {
+        if (search.isBlank()) return
+        searchResultsExpanded = true
+        onRunSearch()
+    }
     Column(
         modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface),
     ) {
@@ -349,27 +362,50 @@ private fun YggdrasilTopBar(
                 path = state.selectedPath,
                 modifier = Modifier.weight(1f),
             )
-            ShellTextInput(
-                value = search,
-                onValueChange = onSearchChange,
-                placeholder = stringResource(strings.top_search_placeholder),
-                modifier = Modifier.width(340.dp),
-                leading = {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                },
-                trailing = {
-                    Text(
-                        text = "⌘K",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
+            Box {
+                ShellTextInput(
+                    value = search,
+                    onValueChange = {
+                        onSearchChange(it)
+                        searchResultsExpanded = false
+                    },
+                    placeholder = stringResource(strings.top_search_placeholder),
+                    modifier = Modifier
+                        .width(340.dp)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                                runTopSearch()
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                    leading = {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    trailing = {
+                        Text(
+                            text = "↵",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                )
+                TopSearchResultsMenu(
+                    expanded = searchResultsExpanded,
+                    searchState = state.searchState,
+                    onDismiss = { searchResultsExpanded = false },
+                    onSelectPath = { path ->
+                        searchResultsExpanded = false
+                        onSelectSearchResult(path)
+                    },
+                )
+            }
             Button(
                 onClick = onCommand,
                 modifier = Modifier.width(132.dp).height(ShellMetrics.ControlHeight),
@@ -377,14 +413,6 @@ private fun YggdrasilTopBar(
                 contentPadding = PaddingValues(horizontal = 16.dp),
             ) {
                 Text(stringResource(strings.command_button))
-            }
-            IconGlyphButton(label = stringResource(strings.common_search), onClick = onRunSearch) {
-                Icon(
-                    imageVector = Icons.Outlined.Refresh,
-                    contentDescription = stringResource(strings.common_search),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp),
-                )
             }
             IconGlyphButton(label = stringResource(strings.common_settings), onClick = onSettings) {
                 Icon(
@@ -394,17 +422,132 @@ private fun YggdrasilTopBar(
                     modifier = Modifier.size(24.dp),
                 )
             }
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
+        }
+    }
+}
+
+@Composable
+private fun TopSearchResultsMenu(
+    expanded: Boolean,
+    searchState: ZNodeSearchState,
+    onDismiss: () -> Unit,
+    onSelectPath: (ZNodePath) -> Unit,
+) {
+    val strings = Res.string
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = false),
+        modifier = Modifier
+            .width(460.dp)
+            .heightIn(max = 360.dp)
+            .clip(ShellMetrics.CardShape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), ShellMetrics.CardShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(8.dp),
+    ) {
+        when (searchState) {
+            ZNodeSearchState.Idle -> Text(
+                text = stringResource(strings.command_no_search_body),
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            is ZNodeSearchState.Running -> Text(
+                text = stringResource(strings.command_scanned_nodes, searchState.scannedNodes),
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            is ZNodeSearchState.Failed -> Text(
+                text = searchState.error.localized(),
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+
+            is ZNodeSearchState.Loaded -> {
                 Text(
-                    "●",
+                    text = stringResource(
+                        strings.command_hits_summary,
+                        searchState.report.hits.size,
+                        searchState.report.scannedNodes,
+                        searchState.report.stopReason.name,
+                    ),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelSmall
+                )
+                if (searchState.report.hits.isEmpty()) {
+                    Text(
+                        text = stringResource(strings.command_no_search_body),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    val pathLabel = stringResource(strings.common_path)
+                    val dataLabel = stringResource(strings.common_data)
+                    Column(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 292.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        searchState.report.hits.forEach { hit ->
+                            TopSearchResultRow(
+                                path = hit.path,
+                                body = buildString {
+                                    if (hit.matchedPath) append(pathLabel)
+                                    if (hit.matchedPath && hit.matchedData) append(" · ")
+                                    if (hit.matchedData) append(hit.dataPreview ?: dataLabel)
+                                },
+                                onClick = { onSelectPath(hit.path) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopSearchResultRow(
+    path: ZNodePath,
+    body: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ShellMetrics.FieldShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = path.value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (body.isNotBlank()) {
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

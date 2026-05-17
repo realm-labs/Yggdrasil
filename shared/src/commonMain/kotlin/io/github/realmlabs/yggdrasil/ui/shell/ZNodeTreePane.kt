@@ -13,14 +13,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ZNodeChildrenState
 import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import yggdrasil.shared.generated.resources.*
+import kotlin.math.roundToInt
 
 @Composable
 fun TreePane(
@@ -74,6 +78,32 @@ fun TreePane(
             var expandedPaths by remember(state.activeConnectionId) {
                 mutableStateOf(setOf(ZNodePath.Root))
             }
+            val treeScrollState = rememberScrollState()
+            val coroutineScope = rememberCoroutineScope()
+            var viewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+            var viewportHeight by remember { mutableStateOf(0) }
+            var centeredPath by remember { mutableStateOf<ZNodePath?>(null) }
+            LaunchedEffect(state.selectedPath) {
+                centeredPath = null
+                state.selectedPath?.let { selectedPath ->
+                    expandedPaths = expandedPaths + selectedPath.ancestorPaths()
+                }
+            }
+
+            fun centerSelectedPath(path: ZNodePath, rowCoordinates: LayoutCoordinates) {
+                if (path != state.selectedPath || centeredPath == path) return
+                val viewport = viewportCoordinates ?: return
+                if (viewportHeight <= 0) return
+                val rowTop = viewport.localPositionOf(rowCoordinates, Offset.Zero).y
+                val rowCenter = rowTop + rowCoordinates.size.height / 2f
+                val target = (treeScrollState.value + rowCenter - viewportHeight / 2f)
+                    .roundToInt()
+                    .coerceIn(0, treeScrollState.maxValue)
+                centeredPath = path
+                coroutineScope.launch {
+                    treeScrollState.animateScrollTo(target)
+                }
+            }
 
             fun togglePath(path: ZNodePath, expandable: Boolean, childrenState: ZNodeChildrenState?) {
                 if (!expandable) return
@@ -89,7 +119,13 @@ fun TreePane(
             }
 
             Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { coordinates ->
+                        viewportCoordinates = coordinates
+                        viewportHeight = coordinates.size.height
+                    }
+                    .verticalScroll(treeScrollState),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 val rootChildrenState = state.znodeChildren[ZNodePath.Root]
@@ -108,6 +144,7 @@ fun TreePane(
                             childrenState = rootChildrenState,
                         )
                     },
+                    onSelectedPositioned = ::centerSelectedPath,
                 )
                 TreeChildren(
                     state = state,
@@ -117,11 +154,15 @@ fun TreePane(
                     filter = filter,
                     onSelectPath = onSelectPath,
                     onTogglePath = ::togglePath,
+                    onSelectedPositioned = ::centerSelectedPath,
                 )
             }
         }
     }
 }
+
+private fun ZNodePath.ancestorPaths(): List<ZNodePath> =
+    generateSequence(parent) { it.parent }.toList().asReversed()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -179,6 +220,7 @@ private fun TreeChildren(
     filter: String,
     onSelectPath: (ZNodePath) -> Unit,
     onTogglePath: (ZNodePath, Boolean, ZNodeChildrenState?) -> Unit,
+    onSelectedPositioned: (ZNodePath, LayoutCoordinates) -> Unit,
 ) {
     val strings = Res.string
     if (parent !in expandedPaths) return
@@ -225,6 +267,7 @@ private fun TreeChildren(
                     expanded = child.path in expandedPaths,
                     onSelect = { onSelectPath(child.path) },
                     onToggle = { onTogglePath(child.path, expandable, childChildrenState) },
+                    onSelectedPositioned = onSelectedPositioned,
                 )
                 TreeChildren(
                     state = state,
@@ -234,6 +277,7 @@ private fun TreeChildren(
                     filter = filter,
                     onSelectPath = onSelectPath,
                     onTogglePath = onTogglePath,
+                    onSelectedPositioned = onSelectedPositioned,
                 )
             }
         }
@@ -250,6 +294,7 @@ private fun TreeNodeRow(
     expanded: Boolean,
     onSelect: () -> Unit,
     onToggle: () -> Unit,
+    onSelectedPositioned: (ZNodePath, LayoutCoordinates) -> Unit,
 ) {
     val background = if (selected) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
@@ -265,6 +310,11 @@ private fun TreeNodeRow(
             .clip(ShellMetrics.TreeRowShape)
             .background(background)
             .clickable(onClick = onSelect)
+            .onGloballyPositioned { coordinates ->
+                if (selected) {
+                    onSelectedPositioned(path, coordinates)
+                }
+            }
             .padding(
                 PaddingValues(
                     start = (6 + depth * 16).dp,
