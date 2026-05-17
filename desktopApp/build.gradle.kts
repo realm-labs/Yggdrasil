@@ -11,6 +11,7 @@ dependencies {
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)
+    runtimeOnly(libs.logback.classic)
 
     implementation(libs.compose.uiToolingPreview)
 }
