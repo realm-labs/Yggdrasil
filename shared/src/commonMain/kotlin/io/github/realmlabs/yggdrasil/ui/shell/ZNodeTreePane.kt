@@ -101,23 +101,39 @@ fun TreePane(
             var viewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
             var viewportHeight by remember { mutableStateOf(0) }
             var centeredPath by remember { mutableStateOf<ZNodePath?>(null) }
+            var manualSelectedPath by remember(state.activeConnectionId) { mutableStateOf<ZNodePath?>(null) }
+            var centerRequestedPath by remember(state.activeConnectionId) { mutableStateOf<ZNodePath?>(null) }
             LaunchedEffect(state.selectedPath) {
                 centeredPath = null
                 state.selectedPath?.let { selectedPath ->
                     expandedPaths = expandedPaths + selectedPath.ancestorPaths()
+                    centerRequestedPath = if (selectedPath == manualSelectedPath) null else selectedPath
+                    manualSelectedPath = null
                 }
             }
 
+            fun selectTreePath(path: ZNodePath) {
+                manualSelectedPath = path
+                onSelectPath(path)
+            }
+
             fun centerSelectedPath(path: ZNodePath, rowCoordinates: LayoutCoordinates) {
-                if (path != state.selectedPath || centeredPath == path) return
+                if (path != state.selectedPath || path != centerRequestedPath || centeredPath == path) return
                 val viewport = viewportCoordinates ?: return
                 if (viewportHeight <= 0) return
                 val rowTop = viewport.localPositionOf(rowCoordinates, Offset.Zero).y
+                val rowBottom = rowTop + rowCoordinates.size.height
+                if (rowTop >= 0f && rowBottom <= viewportHeight) {
+                    centeredPath = path
+                    centerRequestedPath = null
+                    return
+                }
                 val rowCenter = rowTop + rowCoordinates.size.height / 2f
                 val target = (treeScrollState.value + rowCenter - viewportHeight / 2f)
                     .roundToInt()
                     .coerceIn(0, treeScrollState.maxValue)
                 centeredPath = path
+                centerRequestedPath = null
                 coroutineScope.launch {
                     treeScrollState.animateScrollTo(target)
                 }
@@ -132,7 +148,7 @@ fun TreePane(
                     expandedPaths = expandedPaths + path
                 }
                 if (!wasExpanded && childrenState !is ZNodeChildrenState.Loaded && childrenState != ZNodeChildrenState.Loading) {
-                    onSelectPath(path)
+                    selectTreePath(path)
                 }
             }
 
@@ -154,7 +170,7 @@ fun TreePane(
                     childrenState = rootChildrenState,
                     expandable = rootChildrenState !is ZNodeChildrenState.Loaded || rootChildrenState.children.isNotEmpty(),
                     expanded = ZNodePath.Root in expandedPaths,
-                    onSelect = { onSelectPath(ZNodePath.Root) },
+                    onSelect = { selectTreePath(ZNodePath.Root) },
                     onToggle = {
                         togglePath(
                             path = ZNodePath.Root,
@@ -170,7 +186,7 @@ fun TreePane(
                     parent = ZNodePath.Root,
                     depth = 1,
                     filter = filter,
-                    onSelectPath = onSelectPath,
+                    onSelectPath = ::selectTreePath,
                     onTogglePath = ::togglePath,
                     onSelectedPositioned = ::centerSelectedPath,
                 )
