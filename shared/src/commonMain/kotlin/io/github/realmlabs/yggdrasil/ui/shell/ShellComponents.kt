@@ -2,6 +2,7 @@ package io.github.realmlabs.yggdrasil.ui.shell
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -14,11 +15,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
@@ -331,4 +336,42 @@ fun DividerLine(vertical: Boolean) {
             Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
         },
     )
+}
+
+@Composable
+fun ResizableDivider(
+    vertical: Boolean,
+    onDrag: (Dp) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    Box(
+        modifier = modifier
+            .then(
+                if (vertical) {
+                    Modifier.fillMaxHeight().width(7.dp)
+                } else {
+                    Modifier.fillMaxWidth().height(7.dp)
+                },
+            )
+            .pointerInput(vertical) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    val delta = with(density) {
+                        if (vertical) dragAmount.x.toDp() else dragAmount.y.toDp()
+                    }
+                    onDrag(delta)
+                }
+            }
+            .pointerHoverIcon(resizePointerIcon(vertical), overrideDescendants = true),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = if (vertical) {
+                Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+            } else {
+                Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+            },
+        )
+    }
 }

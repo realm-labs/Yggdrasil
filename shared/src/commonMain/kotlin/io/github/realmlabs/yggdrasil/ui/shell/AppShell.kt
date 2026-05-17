@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.realmlabs.yggdrasil.application.state.*
@@ -64,6 +65,9 @@ fun AppShell(
     var lastTerminalStateKey by remember { mutableStateOf("") }
     var inspectorExpanded by remember { mutableStateOf(state.settings.inspectorExpandedByDefault) }
     var showSettings by remember { mutableStateOf(false) }
+    var treePaneWidth by remember { mutableStateOf(316.dp) }
+    var inspectorPaneWidth by remember { mutableStateOf(300.dp) }
+    var terminalHeight by remember { mutableStateOf(220.dp) }
     val terminalSuccessOutput = when (val cliState = state.zkCliState) {
         is ZkCliState.Loaded -> localizedZkCliOutput(cliState.result.output)
         else -> null
@@ -152,9 +156,14 @@ fun AppShell(
                     state = state,
                     onSelectPath = onSelectPath,
                     onRefreshSelectedPath = onRefreshSelectedPath,
-                    modifier = Modifier.width(316.dp).fillMaxHeight(),
+                    modifier = Modifier.width(treePaneWidth).fillMaxHeight(),
                 )
-                DividerLine(vertical = true)
+                ResizableDivider(
+                    vertical = true,
+                    onDrag = { delta ->
+                        treePaneWidth = (treePaneWidth + delta).coerceIn(220.dp, 520.dp)
+                    },
+                )
                 NodeDetailPane(
                     state = state,
                     onCreateNode = { showCreateNodeDialog = true },
@@ -163,21 +172,36 @@ fun AppShell(
                     onClearSelection = onClearSelection,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
-                DividerLine(vertical = true)
+                if (inspectorExpanded) {
+                    ResizableDivider(
+                        vertical = true,
+                        onDrag = { delta ->
+                            inspectorPaneWidth = (inspectorPaneWidth - delta).coerceIn(240.dp, 560.dp)
+                        },
+                    )
+                } else {
+                    DividerLine(vertical = true)
+                }
                 InspectorPane(
                     state = state,
                     expanded = inspectorExpanded,
                     onToggleExpanded = { inspectorExpanded = !inspectorExpanded },
                     onEditAcl = { showAclDialog = true },
-                    modifier = Modifier.width(if (inspectorExpanded) 300.dp else 56.dp).fillMaxHeight(),
+                    modifier = Modifier.width(if (inspectorExpanded) inspectorPaneWidth else 56.dp).fillMaxHeight(),
                 )
             }
-            DividerLine(vertical = false)
                 if (state.settings.embeddedTerminalEnabled) {
+                    ResizableDivider(
+                        vertical = false,
+                        onDrag = { delta ->
+                            terminalHeight = (terminalHeight - delta).coerceIn(140.dp, 460.dp)
+                        },
+                    )
                     ZkCliTerminal(
                         state = state,
                         settings = state.settings,
                         entries = terminalEntries,
+                        terminalHeight = terminalHeight,
                         command = terminalCommand,
                         onCommandChange = { terminalCommand = it },
                         onCompleteCommand = {
@@ -702,6 +726,7 @@ private fun ZkCliTerminal(
     state: AppState,
     settings: AppSettings,
     entries: List<TerminalEntry>,
+    terminalHeight: Dp,
     command: TextFieldValue,
     onCommandChange: (TextFieldValue) -> Unit,
     onCompleteCommand: () -> Unit,
@@ -732,7 +757,7 @@ private fun ZkCliTerminal(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (expanded) 220.dp else 48.dp)
+            .height(if (expanded) terminalHeight else 48.dp)
             .background(MaterialTheme.colorScheme.surface),
     ) {
         Row(

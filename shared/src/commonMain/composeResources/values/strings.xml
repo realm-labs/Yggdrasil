@@ -139,7 +139,7 @@
     <string name="terminal_empty">No zkCli commands yet.</string>
     <string name="terminal_placeholder">Enter zkCli command...</string>
     <string name="terminal_cursor">Ln 4, Col 1</string>
-    <string name="terminal_execute">Execute  ⌘↵</string>
+    <string name="terminal_execute">Execute ↵</string>
     <string name="terminal_output_created">Created %1$s</string>
     <string name="terminal_output_set_version">Set %1$s version %2$s</string>
     <string name="terminal_output_deleted">Deleted %1$s</string>

@@ -193,14 +193,15 @@ private fun NodeDataViewer(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                text = detail.path.value,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = detail.path.value,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             NodeActionButton(
                 label = stringResource(strings.tree_create_znode),
                 icon = Icons.Outlined.Add,

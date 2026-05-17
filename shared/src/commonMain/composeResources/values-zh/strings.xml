@@ -138,7 +138,7 @@
     <string name="terminal_empty">还没有 zkCli 命令。</string>
     <string name="terminal_placeholder">输入 zkCli 命令...</string>
     <string name="terminal_cursor">第 4 行，第 1 列</string>
-    <string name="terminal_execute">执行  ⌘↵</string>
+    <string name="terminal_execute">执行 ↵</string>
     <string name="terminal_output_created">已创建 %1$s</string>
     <string name="terminal_output_set_version">已设置 %1$s，版本 %2$s</string>
     <string name="terminal_output_deleted">已删除 %1$s</string>

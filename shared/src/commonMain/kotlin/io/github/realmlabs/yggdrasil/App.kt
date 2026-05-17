@@ -56,74 +56,72 @@ fun App() {
     }
 
     CompositionLocalProvider(LocalAppLocale provides stateHolder.state.settings.language.localeTag) {
-        key(LocalAppLocale.current) {
-            YggdrasilTheme(themePreference = stateHolder.state.settings.themePreference) {
-                AppShell(
-                    state = stateHolder.state,
-                    onSelectConnection = { id -> coroutineScope.launch { stateHolder.selectConnection(id) } },
-                    onCreateConnection = { draft -> coroutineScope.launch { stateHolder.createConnection(draft) } },
-                    onUpdateConnection = { id, draft ->
-                        coroutineScope.launch {
-                            stateHolder.updateConnection(
-                                id,
-                                draft
-                            )
-                        }
-                    },
-                    onDeleteConnection = { id -> coroutineScope.launch { stateHolder.deleteConnection(id) } },
-                    onTestConnection = { id -> coroutineScope.launch { stateHolder.testConnection(id) } },
-                    onSelectPath = { path -> coroutineScope.launch { stateHolder.selectPath(path) } },
-                    onRefreshSelectedPath = { coroutineScope.launch { stateHolder.refreshSelectedPath() } },
-                    onCreateNode = { request -> coroutineScope.launch { stateHolder.createNode(request) } },
-                    onUpdateNodeData = { data, expectedVersion ->
-                        coroutineScope.launch { stateHolder.updateSelectedNodeData(data, expectedVersion) }
-                    },
-                    onPreviewDeleteNode = { recursive ->
-                        coroutineScope.launch { stateHolder.previewDeleteSelectedNode(recursive) }
-                    },
-                    onDeletePreviewedNode = { confirmation ->
-                        coroutineScope.launch {
-                            stateHolder.deletePreviewedNode(
-                                confirmation = confirmation,
-                                requireConfirmation = stateHolder.state.settings.requireDangerousConfirmation,
-                            )
-                        }
-                    },
-                    onClearDeletePreview = stateHolder::clearDeletePreview,
-                    onUpdateAcl = { acl, expectedAversion ->
-                        coroutineScope.launch { stateHolder.updateSelectedAcl(acl, expectedAversion) }
-                    },
-                    onSearch = { request ->
-                        searchJob?.cancel()
-                        searchJob = coroutineScope.launch { stateHolder.searchZNodes(request) }
-                    },
-                    onCancelSearch = {
-                        searchJob?.cancel()
-                        stateHolder.markSearchCanceled()
-                    },
-                    onExport = { includeAcl, dataEncoding ->
-                        coroutineScope.launch { stateHolder.exportSelectedSubtree(includeAcl, dataEncoding) }
-                    },
-                    onImport = { request ->
-                        coroutineScope.launch { stateHolder.importZNodeTree(request) }
-                    },
-                    onCompare = { request ->
-                        compareJob?.cancel()
-                        compareJob = coroutineScope.launch { stateHolder.compareConnections(request) }
-                    },
-                    onCancelCompare = {
-                        compareJob?.cancel()
-                        stateHolder.markCompareCanceled()
-                    },
-                    onExecuteZkCli = { request ->
-                        coroutineScope.launch { stateHolder.executeZkCliCommand(request) }
-                    },
-                    onClearSelection = stateHolder::clearSelection,
-                    onUpdateSettings = { settings ->
-                        coroutineScope.launch { stateHolder.updateSettings(settings) }
-                    },
-                )
-            }
+        YggdrasilTheme(themePreference = stateHolder.state.settings.themePreference) {
+            AppShell(
+                state = stateHolder.state,
+                onSelectConnection = { id -> coroutineScope.launch { stateHolder.selectConnection(id) } },
+                onCreateConnection = { draft -> coroutineScope.launch { stateHolder.createConnection(draft) } },
+                onUpdateConnection = { id, draft ->
+                    coroutineScope.launch {
+                        stateHolder.updateConnection(
+                            id,
+                            draft
+                        )
+                    }
+                },
+                onDeleteConnection = { id -> coroutineScope.launch { stateHolder.deleteConnection(id) } },
+                onTestConnection = { id -> coroutineScope.launch { stateHolder.testConnection(id) } },
+                onSelectPath = { path -> coroutineScope.launch { stateHolder.selectPath(path) } },
+                onRefreshSelectedPath = { coroutineScope.launch { stateHolder.refreshSelectedPath() } },
+                onCreateNode = { request -> coroutineScope.launch { stateHolder.createNode(request) } },
+                onUpdateNodeData = { data, expectedVersion ->
+                    coroutineScope.launch { stateHolder.updateSelectedNodeData(data, expectedVersion) }
+                },
+                onPreviewDeleteNode = { recursive ->
+                    coroutineScope.launch { stateHolder.previewDeleteSelectedNode(recursive) }
+                },
+                onDeletePreviewedNode = { confirmation ->
+                    coroutineScope.launch {
+                        stateHolder.deletePreviewedNode(
+                            confirmation = confirmation,
+                            requireConfirmation = stateHolder.state.settings.requireDangerousConfirmation,
+                        )
+                    }
+                },
+                onClearDeletePreview = stateHolder::clearDeletePreview,
+                onUpdateAcl = { acl, expectedAversion ->
+                    coroutineScope.launch { stateHolder.updateSelectedAcl(acl, expectedAversion) }
+                },
+                onSearch = { request ->
+                    searchJob?.cancel()
+                    searchJob = coroutineScope.launch { stateHolder.searchZNodes(request) }
+                },
+                onCancelSearch = {
+                    searchJob?.cancel()
+                    stateHolder.markSearchCanceled()
+                },
+                onExport = { includeAcl, dataEncoding ->
+                    coroutineScope.launch { stateHolder.exportSelectedSubtree(includeAcl, dataEncoding) }
+                },
+                onImport = { request ->
+                    coroutineScope.launch { stateHolder.importZNodeTree(request) }
+                },
+                onCompare = { request ->
+                    compareJob?.cancel()
+                    compareJob = coroutineScope.launch { stateHolder.compareConnections(request) }
+                },
+                onCancelCompare = {
+                    compareJob?.cancel()
+                    stateHolder.markCompareCanceled()
+                },
+                onExecuteZkCli = { request ->
+                    coroutineScope.launch { stateHolder.executeZkCliCommand(request) }
+                },
+                onClearSelection = stateHolder::clearSelection,
+                onUpdateSettings = { settings ->
+                    coroutineScope.launch { stateHolder.updateSettings(settings) }
+                },
+            )
         }
     }
 }
