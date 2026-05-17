@@ -125,6 +125,23 @@ fun InspectorPane(
                         ?: "-"),
                 ),
             )
+            InspectorSection(
+                title = stringResource(strings.inspector_audit),
+                rows = state.auditEntries.take(5).ifEmpty {
+                    listOf(null)
+                }.mapIndexed { index, entry ->
+                    if (entry == null) {
+                        stringResource(strings.inspector_recent_operations) to "-"
+                    } else {
+                        val label = if (index == 0) stringResource(strings.inspector_latest) else entry.action.name
+                        label to buildString {
+                            append(entry.action.name)
+                            entry.path?.let { append(" ").append(it) }
+                            append(" · ").append(entry.summary)
+                        }
+                    }
+                },
+            )
         }
     }
 }

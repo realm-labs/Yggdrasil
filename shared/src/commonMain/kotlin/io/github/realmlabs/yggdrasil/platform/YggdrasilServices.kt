@@ -6,6 +6,7 @@ class YggdrasilServices(
     val appSettingsRepository: AppSettingsRepository,
     val connectionProfileRepository: ConnectionProfileRepository,
     val credentialRepository: CredentialRepository,
+    val auditLogRepository: AuditLogRepository,
     val zooKeeperConnectionTester: ZooKeeperConnectionTester,
     val zNodeRepository: ZNodeRepository,
 )

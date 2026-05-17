@@ -21,6 +21,7 @@ fun App() {
             appSettingsRepository = services.appSettingsRepository,
             connectionProfileRepository = services.connectionProfileRepository,
             credentialRepository = services.credentialRepository,
+            auditLogRepository = services.auditLogRepository,
             zooKeeperConnectionTester = services.zooKeeperConnectionTester,
             zNodeRepository = services.zNodeRepository,
         )
@@ -32,6 +33,7 @@ fun App() {
     LaunchedEffect(stateHolder) {
         stateHolder.loadSettings()
         stateHolder.loadConnections()
+        stateHolder.loadAuditLog()
     }
 
     LaunchedEffect(

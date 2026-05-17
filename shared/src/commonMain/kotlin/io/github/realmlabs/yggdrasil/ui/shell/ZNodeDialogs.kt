@@ -253,6 +253,13 @@ fun AclEditorDialog(
         )
     }
     var validationMessage by remember { mutableStateOf<String?>(null) }
+    val nextAcl = entries.map(AclDraft::toAcl)
+    val aclDiffSummary = summarizeAclChange(detail.acl, nextAcl)
+    val hasHighRiskAcl = nextAcl.any { acl ->
+        acl.scheme == "world" &&
+                acl.id == "anyone" &&
+                ZNodePermission.entries.all { permission -> permission in acl.permissions }
+    }
 
     fun updateEntry(index: Int, transform: (AclDraft) -> AclDraft) {
         entries = entries.mapIndexed { currentIndex, entry ->
@@ -344,6 +351,18 @@ fun AclEditorDialog(
                 }) {
                     Text(stringResource(strings.dialog_add_acl))
                 }
+                Text(
+                    text = stringResource(strings.dialog_acl_diff_summary, aclDiffSummary),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (hasHighRiskAcl) {
+                    Text(
+                        text = stringResource(strings.dialog_acl_high_risk),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 validationMessage?.let { message ->
                     Text(
                         text = message,
@@ -373,6 +392,19 @@ fun AclEditorDialog(
             }
         },
     )
+}
+
+private fun summarizeAclChange(
+    before: List<ZNodeAcl>,
+    after: List<ZNodeAcl>,
+): String {
+    val beforeSet = before.toSet()
+    val afterSet = after.toSet()
+    val added = afterSet.count { it !in beforeSet }
+    val removed = beforeSet.count { it !in afterSet }
+    val unchanged = afterSet.count { it in beforeSet }
+    val changed = (maxOf(before.size, after.size) - added - removed - unchanged).coerceAtLeast(0)
+    return "+$added / -$removed / ~$changed"
 }
 
 @Composable

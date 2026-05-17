@@ -120,6 +120,11 @@ internal fun AppError.localized(): String {
         message == "Settings store is not valid JSON." -> stringResource(strings.error_settings_store_invalid_json)
         message == "Could not read settings." -> stringResource(strings.error_settings_read_failed)
         message == "Could not save settings." -> stringResource(strings.error_settings_save_failed)
+        message == "Could not read file." -> stringResource(strings.error_file_read_failed)
+        message == "Could not write file." -> stringResource(strings.error_file_write_failed)
+        message == "Could not read audit log." -> stringResource(strings.error_audit_read_failed)
+        message == "Could not write audit log." -> stringResource(strings.error_audit_write_failed)
+        message == "Audit log is not valid JSON." -> stringResource(strings.error_audit_invalid)
         message == "Watch failed." -> stringResource(strings.error_watch_failed)
         message == "Node does not exist." -> stringResource(strings.error_node_does_not_exist)
         message == "Node has children. Enable recursive delete to preview the full delete list." -> {

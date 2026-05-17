@@ -1,6 +1,7 @@
 package io.github.realmlabs.yggdrasil.platform
 
 import io.github.realmlabs.yggdrasil.storage.LocalAppSettingsRepository
+import io.github.realmlabs.yggdrasil.storage.LocalAuditLogRepository
 import io.github.realmlabs.yggdrasil.storage.LocalConnectionProfileRepository
 import io.github.realmlabs.yggdrasil.storage.SystemCredentialRepository
 import io.github.realmlabs.yggdrasil.zookeeper.CuratorZNodeRepository
@@ -15,6 +16,7 @@ actual fun createYggdrasilServices(): YggdrasilServices {
         appSettingsRepository = LocalAppSettingsRepository(configDirectory.resolve("settings.json")),
         connectionProfileRepository = LocalConnectionProfileRepository(configDirectory.resolve("connections.json")),
         credentialRepository = credentialRepository,
+        auditLogRepository = LocalAuditLogRepository(configDirectory.resolve("audit-log.json")),
         zooKeeperConnectionTester = CuratorZooKeeperConnectionTester(credentialRepository),
         zNodeRepository = CuratorZNodeRepository(credentialRepository),
     )

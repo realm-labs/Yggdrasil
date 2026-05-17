@@ -16,6 +16,10 @@ import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.*
 import io.github.realmlabs.yggdrasil.application.workflow.completeZkCliCommandLine
 import io.github.realmlabs.yggdrasil.domain.model.*
+import io.github.realmlabs.yggdrasil.platform.chooseFilePath
+import io.github.realmlabs.yggdrasil.platform.chooseSaveFilePath
+import io.github.realmlabs.yggdrasil.platform.readTextFile
+import io.github.realmlabs.yggdrasil.platform.writeTextFile
 import org.jetbrains.compose.resources.stringResource
 import yggdrasil.shared.generated.resources.*
 
@@ -296,8 +300,12 @@ private fun ExportCommandPane(
     onExport: (Boolean, ZNodeDataEncoding) -> Unit,
 ) {
     val strings = Res.string
+    val exportFileTitle = stringResource(strings.command_export_file_title)
+    val fileSavedPrefix = stringResource(strings.command_file_saved_prefix)
+    val fileWriteFailed = stringResource(strings.error_file_write_failed)
     var includeAcl by remember { mutableStateOf(false) }
     var encoding by remember { mutableStateOf(ZNodeDataEncoding.Text) }
+    var fileStatus by remember { mutableStateOf<String?>(null) }
     val selectedPath = state.selectedPath
     val running = state.exportState is ZNodeExportState.Running
 
@@ -340,6 +348,32 @@ private fun ExportCommandPane(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            val file = chooseSaveFilePath(
+                                title = exportFileTitle,
+                                currentPath = "znode-export.json",
+                            )
+                            if (file != null) {
+                                fileStatus = when (val result = writeTextFile(file, export.report.json)) {
+                                    is OperationResult.Success -> "$fileSavedPrefix $file"
+                                    is OperationResult.Failure -> result.error.cause?.let { "$fileWriteFailed $it" }
+                                        ?: fileWriteFailed
+                                }
+                            }
+                        },
+                    ) {
+                        Text(stringResource(strings.command_save_file))
+                    }
+                }
+                fileStatus?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 OutlinedTextField(
                     value = export.report.json,
                     onValueChange = {},
@@ -358,12 +392,41 @@ private fun ImportCommandPane(
     onImport: (ZNodeImportRequest) -> Unit,
 ) {
     val strings = Res.string
+    val importFileTitle = stringResource(strings.command_import_file_title)
+    val fileLoadedPrefix = stringResource(strings.command_file_loaded_prefix)
+    val fileReadFailed = stringResource(strings.error_file_read_failed)
     var json by remember { mutableStateOf("") }
     var dryRun by remember { mutableStateOf(true) }
     var strategy by remember { mutableStateOf(ZNodeImportConflictStrategy.Skip) }
+    var fileStatus by remember { mutableStateOf<String?>(null) }
     val running = state.importState is ZNodeImportState.Running
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(
+                enabled = !running,
+                onClick = {
+                    val file = chooseFilePath(importFileTitle)
+                    if (file != null) {
+                        when (val result = readTextFile(file)) {
+                            is OperationResult.Success -> {
+                                json = result.value
+                                fileStatus = "$fileLoadedPrefix $file"
+                            }
+
+                            is OperationResult.Failure -> {
+                                fileStatus = result.error.cause?.let { "$fileReadFailed $it" } ?: fileReadFailed
+                            }
+                        }
+                    }
+                },
+            ) {
+                Text(stringResource(strings.command_load_file))
+            }
+            fileStatus?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         OutlinedTextField(
             value = json,
             onValueChange = { json = it },

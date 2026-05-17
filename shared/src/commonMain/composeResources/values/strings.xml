@@ -109,6 +109,9 @@
     <string name="node_format_json">JSON</string>
     <string name="node_format_hex">Hex</string>
     <string name="node_format_base64">Base64</string>
+    <string name="node_change_summary">Change</string>
+    <string name="node_edit_too_large">Editing is disabled for data over %1$d KB. Copy or export the value instead.
+    </string>
 
     <string name="inspector_expand">Expand inspector</string>
     <string name="inspector_collapse">Collapse inspector</string>
@@ -132,6 +135,9 @@
     <string name="inspector_state_registered">Registered</string>
     <string name="inspector_state_not_registered">Not registered</string>
     <string name="inspector_last_event">Last event</string>
+    <string name="inspector_audit">Recent operations</string>
+    <string name="inspector_recent_operations">Operations</string>
+    <string name="inspector_latest">Latest</string>
 
     <string name="terminal_title">zkCli Terminal</string>
     <string name="terminal_collapse">Collapse terminal</string>
@@ -212,6 +218,8 @@
     <string name="dialog_remove">Remove</string>
     <string name="dialog_add_acl">Add ACL</string>
     <string name="dialog_acl_validation">ACL entries require scheme, id, and at least one permission.</string>
+    <string name="dialog_acl_diff_summary">ACL diff %1$s</string>
+    <string name="dialog_acl_high_risk">High-risk ACL: world:anyone has full permissions.</string>
 
     <string name="command_title">Command</string>
     <string name="command_zkcli">ZK CLI</string>
@@ -233,6 +241,12 @@
     <string name="command_root_summary">Root %1$s</string>
     <string name="command_include_acl">Include ACL</string>
     <string name="command_export_json">Export JSON</string>
+    <string name="command_save_file">Save file</string>
+    <string name="command_load_file">Load file</string>
+    <string name="command_export_file_title">Save znode export</string>
+    <string name="command_import_file_title">Open znode import JSON</string>
+    <string name="command_file_saved_prefix">Saved</string>
+    <string name="command_file_loaded_prefix">Loaded</string>
     <string name="command_no_export_title">No export yet</string>
     <string name="command_no_export_body">Exported JSON appears here.</string>
     <string name="command_exporting">Exporting %1$s</string>
@@ -362,6 +376,11 @@
     <string name="error_settings_store_invalid_json">Settings store is not valid JSON.</string>
     <string name="error_settings_read_failed">Could not read settings.</string>
     <string name="error_settings_save_failed">Could not save settings.</string>
+    <string name="error_file_read_failed">Could not read file.</string>
+    <string name="error_file_write_failed">Could not write file.</string>
+    <string name="error_audit_read_failed">Could not read audit log.</string>
+    <string name="error_audit_write_failed">Could not write audit log.</string>
+    <string name="error_audit_invalid">Audit log is not valid JSON.</string>
     <string name="error_watch_failed">Watch failed.</string>
     <string name="error_node_does_not_exist">Node does not exist.</string>
     <string name="error_node_has_children_preview">Node has children. Enable recursive delete to preview the full delete list.</string>

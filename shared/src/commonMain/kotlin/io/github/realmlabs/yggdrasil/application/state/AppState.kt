@@ -1,9 +1,6 @@
 package io.github.realmlabs.yggdrasil.application.state
 
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionId
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionMode
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfile
-import io.github.realmlabs.yggdrasil.domain.model.ZNodePath
+import io.github.realmlabs.yggdrasil.domain.model.*
 
 data class AppState(
     val connections: List<ConnectionProfile> = emptyList(),
@@ -19,6 +16,7 @@ data class AppState(
     val importState: ZNodeImportState = ZNodeImportState.Idle,
     val compareState: ZNodeCompareState = ZNodeCompareState.Idle,
     val zkCliState: ZkCliState = ZkCliState.Idle,
+    val auditEntries: List<AuditLogEntry> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val isLoadingConnections: Boolean = false,
     val statusMessage: StatusMessage = StatusMessage.Ready,

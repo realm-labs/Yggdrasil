@@ -7,6 +7,7 @@ import io.github.realmlabs.yggdrasil.application.workflow.ZNodeWorkflowService
 import io.github.realmlabs.yggdrasil.application.workflow.ZkCliCommandService
 import io.github.realmlabs.yggdrasil.domain.model.*
 import io.github.realmlabs.yggdrasil.domain.repository.*
+import io.github.realmlabs.yggdrasil.platform.currentTimeMillis
 import kotlinx.coroutines.flow.Flow
 import kotlin.random.Random
 
@@ -14,6 +15,7 @@ class YggdrasilStateHolder(
     private val appSettingsRepository: AppSettingsRepository? = null,
     private val connectionProfileRepository: ConnectionProfileRepository? = null,
     private val credentialRepository: CredentialRepository? = null,
+    private val auditLogRepository: AuditLogRepository? = null,
     private val zooKeeperConnectionTester: ZooKeeperConnectionTester? = null,
     private val zNodeRepository: ZNodeRepository? = null,
     initialState: AppState = AppState(),
@@ -57,6 +59,14 @@ class YggdrasilStateHolder(
             is OperationResult.Failure -> {
                 state = state.copy(isLoadingConnections = false, statusMessage = StatusMessage.Error(result.error))
             }
+        }
+    }
+
+    suspend fun loadAuditLog() {
+        val repository = auditLogRepository ?: return
+        when (val result = repository.loadRecent()) {
+            is OperationResult.Success -> state = state.copy(auditEntries = result.value)
+            is OperationResult.Failure -> state = state.copy(statusMessage = StatusMessage.Error(result.error))
         }
     }
 
@@ -105,6 +115,7 @@ class YggdrasilStateHolder(
             zkCliState = ZkCliState.Idle,
             statusMessage = StatusMessage.SelectedConnection(connection.name),
         )
+        appendAudit(AuditAction.Connect, null, "Selected connection ${connection.name}.")
         if (state.settings.startAtRoot) {
             selectPath(ZNodePath.Root)
         }
@@ -459,6 +470,7 @@ class YggdrasilStateHolder(
             is OperationResult.Success -> {
                 result.value.parent?.let { loadChildren(it) }
                 selectPath(result.value)
+                appendAudit(AuditAction.Create, result.value, "Created znode.")
                 state = state.copy(statusMessage = StatusMessage.CreatedNode(result.value))
             }
 
@@ -480,6 +492,11 @@ class YggdrasilStateHolder(
 
         when (val result = repository.updateData(profile, request)) {
             is OperationResult.Success -> {
+                appendAudit(
+                    AuditAction.UpdateData,
+                    path,
+                    "Updated data from version $expectedVersion to ${result.value.stat.version}.",
+                )
                 state = state.copy(
                     nodeDetail = ZNodeDetailState.Loaded(result.value),
                     statusMessage = StatusMessage.SavedData(path),
@@ -540,6 +557,11 @@ class YggdrasilStateHolder(
         when (val result = repository.deleteNode(profile, request)) {
             is OperationResult.Success -> {
                 val parent = preview.rootPath.parent
+                appendAudit(
+                    AuditAction.Delete,
+                    preview.rootPath,
+                    "Deleted ${preview.paths.size} znode(s).",
+                )
                 state = state.copy(
                     nodeSelection = NodeSelectionState.None,
                     nodeDetail = ZNodeDetailState.None,
@@ -579,6 +601,11 @@ class YggdrasilStateHolder(
 
         when (val result = repository.updateAcl(profile, request)) {
             is OperationResult.Success -> {
+                appendAudit(
+                    AuditAction.UpdateAcl,
+                    path,
+                    "Updated ${acl.size} ACL entr${if (acl.size == 1) "y" else "ies"} from aversion $expectedAversion to ${result.value.stat.aversion}.",
+                )
                 state = state.copy(
                     nodeDetail = ZNodeDetailState.Loaded(result.value),
                     statusMessage = StatusMessage.SavedAcl(path),
@@ -658,6 +685,11 @@ class YggdrasilStateHolder(
             state.copy(exportState = ZNodeExportState.Running(request), statusMessage = StatusMessage.Exporting(path))
         when (val result = service.exportSubtree(profile, request)) {
             is OperationResult.Success -> {
+                appendAudit(
+                    AuditAction.Export,
+                    path,
+                    "Exported ${result.value.exportedNodes} znode(s).",
+                )
                 state = state.copy(
                     exportState = ZNodeExportState.Loaded(result.value),
                     statusMessage = StatusMessage.Exported(result.value.exportedNodes, path),
@@ -684,6 +716,13 @@ class YggdrasilStateHolder(
         )
         when (val result = service.importSubtree(profile, request)) {
             is OperationResult.Success -> {
+                if (!request.dryRun) {
+                    appendAudit(
+                        AuditAction.Import,
+                        null,
+                        "Imported ${result.value.appliedCount} operation(s), ${result.value.failureCount} failed.",
+                    )
+                }
                 state = state.copy(
                     importState = ZNodeImportState.Loaded(result.value),
                     statusMessage = if (request.dryRun) {
@@ -772,6 +811,13 @@ class YggdrasilStateHolder(
         )
         when (val result = service.execute(profile, request)) {
             is OperationResult.Success -> {
+                if (request.commandLine.isWriteZkCliCommand()) {
+                    appendAudit(
+                        AuditAction.ZkCli,
+                        state.selectedPath,
+                        "Ran ${request.commandLine.redactedZkCliSummary()}.",
+                    )
+                }
                 state = state.copy(
                     zkCliState = ZkCliState.Loaded(result.value),
                     statusMessage = StatusMessage.ZkCommandCompleted,
@@ -891,7 +937,38 @@ class YggdrasilStateHolder(
             state.selectedPath?.let { refreshSelectedPath() }
         }
     }
+
+    private suspend fun appendAudit(
+        action: AuditAction,
+        path: ZNodePath?,
+        summary: String,
+    ) {
+        val repository = auditLogRepository ?: return
+        val connection = state.activeConnection
+        val entry = AuditLogEntry(
+            timestampMillis = currentTimeMillis(),
+            action = action,
+            connectionId = connection?.id?.value,
+            connectionName = connection?.name,
+            path = path?.value,
+            summary = summary,
+        )
+        when (val result = repository.append(entry)) {
+            is OperationResult.Success -> state = state.copy(auditEntries = result.value)
+            is OperationResult.Failure -> state = state.copy(statusMessage = StatusMessage.Error(result.error))
+        }
+    }
 }
 
 private fun ZNodePath.ancestorPaths(): List<ZNodePath> =
     generateSequence(parent) { it.parent }.toList().asReversed()
+
+private fun String.isWriteZkCliCommand(): Boolean =
+    trim().substringBefore(" ") in setOf("create", "set", "delete", "rmr", "deleteall", "setAcl")
+
+private fun String.redactedZkCliSummary(): String {
+    val tokens = trim().split(Regex("\\s+"))
+    val command = tokens.firstOrNull().orEmpty()
+    val path = tokens.drop(1).firstOrNull { !it.startsWith("-") }
+    return listOfNotNull(command, path).filter { it.isNotBlank() }.joinToString(" ")
+}

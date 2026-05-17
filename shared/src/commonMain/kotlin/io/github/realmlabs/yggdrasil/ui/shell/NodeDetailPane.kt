@@ -104,6 +104,8 @@ private fun NodeDataViewer(
     val truncatedCharsSuffix = stringResource(strings.node_truncated_chars_suffix)
     val truncatedBytesPrefix = stringResource(strings.node_truncated_bytes_prefix)
     val truncatedBytesSuffix = stringResource(strings.node_truncated_bytes_suffix)
+    val editTooLarge = stringResource(strings.node_edit_too_large, MaxEditableDataBytes / 1024)
+    val changeSummaryPrefix = stringResource(strings.node_change_summary)
     val renderedData = remember(
         detail.path,
         detail.stat.version,
@@ -148,6 +150,11 @@ private fun NodeDataViewer(
         }
     }
     val canSaveEditedData = !editing || editParseResult is OperationResult.Success
+    val editDisabledForSize = detail.data.size > MaxEditableDataBytes
+    val changeSummary = when (val parsed = editParseResult) {
+        is OperationResult.Success -> summarizeDataChange(detail.data, parsed.value)
+        else -> null
+    }
     val invalidEditMessage = when (editParseResult) {
         is OperationResult.Failure -> when (editParseResult.error.message) {
             "JSON data is invalid." -> invalidJson
@@ -180,7 +187,6 @@ private fun NodeDataViewer(
         when (val parsed = editParseResult) {
             is OperationResult.Success -> {
                 onUpdateNodeData(parsed.value, detail.stat.version)
-                editing = false
             }
 
             null,
@@ -225,7 +231,7 @@ private fun NodeDataViewer(
             NodeActionButton(
                 label = stringResource(strings.common_edit),
                 icon = Icons.Outlined.Edit,
-                enabled = !readOnly && !editing,
+                enabled = !readOnly && !editing && !editDisabledForSize,
                 onClick = ::startEditing,
             )
             NodeActionButton(
@@ -311,6 +317,19 @@ private fun NodeDataViewer(
                         MaterialTheme.colorScheme.primary
                     },
                 )
+                if (editing && changeSummary != null) {
+                    Text(
+                        text = "$changeSummaryPrefix $changeSummary",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (!editing && editDisabledForSize) {
+                    Text(
+                        text = editTooLarge,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 if (editing) {
                     Button(
@@ -663,8 +682,27 @@ private fun ByteArray.toHexPreview(
     return lines.joinToString("\n") + suffix
 }
 
+private fun summarizeDataChange(
+    before: ByteArray,
+    after: ByteArray,
+): String {
+    val beforeLines = before.decodeToString().lines()
+    val afterLines = after.decodeToString().lines()
+    val changedLines = maxOf(beforeLines.size, afterLines.size).let { count ->
+        (0 until count).count { index -> beforeLines.getOrNull(index) != afterLines.getOrNull(index) }
+    }
+    val byteDelta = after.size - before.size
+    val byteLabel = when {
+        byteDelta > 0 -> "+$byteDelta B"
+        byteDelta < 0 -> "$byteDelta B"
+        else -> "0 B"
+    }
+    return "$changedLines line(s), $byteLabel"
+}
+
 private fun Int.toDisplaySize(): String =
     if (this >= 1024) "${this / 1024}.${((this % 1024) * 10 / 1024)} KB" else "$this B"
 
 private const val MaxDataPreviewChars = 64 * 1024
 private const val MaxHexPreviewBytes = 16 * 1024
+private const val MaxEditableDataBytes = 1024 * 1024
