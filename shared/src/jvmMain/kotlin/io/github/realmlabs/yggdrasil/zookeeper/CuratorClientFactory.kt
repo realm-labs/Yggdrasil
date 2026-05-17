@@ -1,18 +1,16 @@
 package io.github.realmlabs.yggdrasil.zookeeper
 
-import io.github.realmlabs.yggdrasil.domain.model.AppError
-import io.github.realmlabs.yggdrasil.domain.model.ConnectionProfile
-import io.github.realmlabs.yggdrasil.domain.model.OperationResult
-import io.github.realmlabs.yggdrasil.domain.model.SshAuthenticationMethod
-import io.github.realmlabs.yggdrasil.storage.SshKeychainServiceName
+import io.github.realmlabs.yggdrasil.domain.model.*
+import io.github.realmlabs.yggdrasil.domain.repository.CredentialRepository
+import io.github.realmlabs.yggdrasil.storage.createCredentialAskPassScripts
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withTimeout
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.CuratorFrameworkFactory
 import org.apache.curator.retry.ExponentialBackoffRetry
 import org.apache.curator.x.async.AsyncCuratorFramework
+import java.io.IOException
 import java.net.ServerSocket
-import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
@@ -30,33 +28,47 @@ internal class AsyncCuratorClient private constructor(
     internal companion object {
         fun start(
             profile: ConnectionProfile,
+            credentialRepository: CredentialRepository?,
             connectionTimeoutMillis: Int,
             sessionTimeoutMillis: Int,
         ): AsyncCuratorClient {
-            val sshTunnel = profile.sshTunnel?.let { startSshTunnel(profile) }
-            val client = createCuratorClient(
-                profile = profile,
-                connectionTimeoutMillis = connectionTimeoutMillis,
-                sessionTimeoutMillis = sessionTimeoutMillis,
-                tunneledConnectionString = sshTunnel?.connectionString,
-            )
-            client.start()
-            return AsyncCuratorClient(
-                client = client,
-                async = AsyncCuratorFramework.wrap(client),
-                sshTunnel = sshTunnel,
-            )
+            val sshTunnel = profile.sshTunnel?.let { startSshTunnel(profile, credentialRepository) }
+            try {
+                val client = createCuratorClient(
+                    profile = profile,
+                    credentialRepository = credentialRepository,
+                    connectionTimeoutMillis = connectionTimeoutMillis,
+                    sessionTimeoutMillis = sessionTimeoutMillis,
+                    tunneledConnectionString = sshTunnel?.connectionString,
+                )
+                try {
+                    client.start()
+                } catch (exception: Exception) {
+                    client.close()
+                    throw exception
+                }
+                return AsyncCuratorClient(
+                    client = client,
+                    async = AsyncCuratorFramework.wrap(client),
+                    sshTunnel = sshTunnel,
+                )
+            } catch (exception: Exception) {
+                sshTunnel?.close()
+                throw exception
+            }
         }
     }
 }
 
 internal fun createAsyncCuratorClient(
     profile: ConnectionProfile,
+    credentialRepository: CredentialRepository? = null,
     connectionTimeoutMillis: Int = 5_000,
     sessionTimeoutMillis: Int = 10_000,
 ): AsyncCuratorClient =
     AsyncCuratorClient.start(
         profile = profile,
+        credentialRepository = credentialRepository,
         connectionTimeoutMillis = connectionTimeoutMillis,
         sessionTimeoutMillis = sessionTimeoutMillis,
     )
@@ -81,6 +93,7 @@ internal suspend fun AsyncCuratorClient.awaitConnected(
 
 private fun createCuratorClient(
     profile: ConnectionProfile,
+    credentialRepository: CredentialRepository?,
     connectionTimeoutMillis: Int = 5_000,
     sessionTimeoutMillis: Int = 10_000,
     tunneledConnectionString: String? = null,
@@ -88,20 +101,36 @@ private fun createCuratorClient(
     val connectString = (tunneledConnectionString ?: profile.connectionString) +
             (profile.chroot?.value?.takeIf { it != "/" } ?: "")
 
-    return CuratorFrameworkFactory.builder()
+    val builder = CuratorFrameworkFactory.builder()
         .connectString(connectString)
         .connectionTimeoutMs(connectionTimeoutMillis)
         .sessionTimeoutMs(sessionTimeoutMillis)
         .retryPolicy(ExponentialBackoffRetry(1_000, 3))
-        .build()
+
+    when (val security = profile.security) {
+        is ConnectionSecurity.Digest -> {
+            val password = readCredentialOrThrow(credentialRepository, security.credentialRef)
+            builder.authorization("digest", "${security.username}:$password".encodeToByteArray())
+        }
+
+        ConnectionSecurity.None,
+        is ConnectionSecurity.Sasl -> Unit
+    }
+
+    return builder.build()
 }
 
-private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
+private fun startSshTunnel(
+    profile: ConnectionProfile,
+    credentialRepository: CredentialRepository?,
+): SshTunnelProcess {
     val tunnel = requireNotNull(profile.sshTunnel)
+    val credentialRef = requireNotNull(tunnel.credentialRef)
+    readCredentialOrThrow(credentialRepository, credentialRef)
     val endpoint = parseSingleZooKeeperEndpoint(profile.connectionString)
     val localPort = findAvailableLocalPort()
     val forwarding = "127.0.0.1:$localPort:${endpoint.host}:${endpoint.port}"
-    val askPassScript = createAskPassScript(requireNotNull(tunnel.credentialRef))
+    val askPassScripts = createCredentialAskPassScripts(credentialRef)
     val command = buildList {
         add("ssh")
         add("-N")
@@ -142,47 +171,49 @@ private fun startSshTunnel(profile: ConnectionProfile): SshTunnelProcess {
 
     val processBuilder = ProcessBuilder(command)
         .redirectErrorStream(true)
-    processBuilder.environment()["SSH_ASKPASS"] = askPassScript.toAbsolutePath().toString()
+    processBuilder.environment()["SSH_ASKPASS"] = askPassScripts.first().toAbsolutePath().toString()
     processBuilder.environment()["SSH_ASKPASS_REQUIRE"] = "force"
     processBuilder.environment()["DISPLAY"] = processBuilder.environment()["DISPLAY"] ?: "localhost:0"
-    val process = processBuilder.start()
-    process.outputStream.close()
-    val exitedEarly = process.waitFor(700, TimeUnit.MILLISECONDS)
-    if (exitedEarly) {
-        val output = process.inputStream.bufferedReader().readText()
-        Files.deleteIfExists(askPassScript)
-        throw IllegalStateException(
-            "SSH tunnel failed to start.${
-                output.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
-            }")
+    val process = try {
+        processBuilder.start()
+    } catch (exception: Exception) {
+        askPassScripts.deleteIfExists()
+        throw exception
+    }
+    try {
+        process.outputStream.close()
+        val exitedEarly = process.waitFor(700, TimeUnit.MILLISECONDS)
+        if (exitedEarly) {
+            val output = process.inputStream.bufferedReader().readText()
+            askPassScripts.deleteIfExists()
+            throw IllegalStateException(
+                "SSH tunnel failed to start.${
+                    output.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
+                }")
+        }
+    } catch (exception: Exception) {
+        process.destroyForcibly()
+        askPassScripts.deleteIfExists()
+        throw exception
     }
 
     return SshTunnelProcess(
         process = process,
         connectionString = "127.0.0.1:$localPort",
-        askPassScript = askPassScript,
+        askPassScripts = askPassScripts,
     )
 }
 
-private fun createAskPassScript(credentialRef: String): Path {
-    val script = Files.createTempFile("yggdrasil-ssh-askpass", ".sh")
-    val content = """
-        |#!/bin/sh
-        |exec /usr/bin/security find-generic-password -s ${SshKeychainServiceName.shellQuote()} -a ${credentialRef.shellQuote()} -w
-        |
-    """.trimMargin()
-    Files.writeString(script, content)
-    script.toFile().setReadable(false, false)
-    script.toFile().setWritable(false, false)
-    script.toFile().setExecutable(false, false)
-    script.toFile().setReadable(true, true)
-    script.toFile().setWritable(true, true)
-    script.toFile().setExecutable(true, true)
-    return script
+private fun readCredentialOrThrow(
+    credentialRepository: CredentialRepository?,
+    credentialRef: String,
+): String {
+    val repository = credentialRepository ?: throw IOException("Credential storage is not available.")
+    return when (val result = kotlinx.coroutines.runBlocking { repository.readCredential(credentialRef) }) {
+        is OperationResult.Success -> result.value
+        is OperationResult.Failure -> throw IOException(result.error.cause ?: result.error.message)
+    }
 }
-
-private fun String.shellQuote(): String =
-    "'${replace("'", "'\"'\"'")}'"
 
 private data class ZooKeeperEndpoint(
     val host: String,
@@ -205,16 +236,22 @@ private fun parseSingleZooKeeperEndpoint(connectionString: String): ZooKeeperEnd
 private fun findAvailableLocalPort(): Int =
     ServerSocket(0).use { socket -> socket.localPort }
 
+private fun List<Path>.deleteIfExists() {
+    forEach { path ->
+        java.nio.file.Files.deleteIfExists(path)
+    }
+}
+
 private class SshTunnelProcess(
     private val process: Process,
     val connectionString: String,
-    private val askPassScript: Path,
+    private val askPassScripts: List<Path>,
 ) : AutoCloseable {
     override fun close() {
         process.destroy()
         if (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
             process.destroyForcibly()
         }
-        Files.deleteIfExists(askPassScript)
+        askPassScripts.deleteIfExists()
     }
 }

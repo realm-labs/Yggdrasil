@@ -1,6 +1,7 @@
 package io.github.realmlabs.yggdrasil.zookeeper
 
 import io.github.realmlabs.yggdrasil.domain.model.*
+import io.github.realmlabs.yggdrasil.domain.repository.CredentialRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ZNodeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -20,6 +21,7 @@ import java.util.concurrent.CompletionStage
 import java.util.concurrent.atomic.AtomicBoolean
 
 class CuratorZNodeRepository(
+    private val credentialRepository: CredentialRepository? = null,
     private val connectionTimeoutMillis: Int = 5_000,
     private val sessionTimeoutMillis: Int = 10_000,
 ) : ZNodeRepository {
@@ -211,9 +213,8 @@ class CuratorZNodeRepository(
         block: suspend (AsyncCuratorFramework) -> OperationResult<T>,
     ): OperationResult<T> =
         withContext(Dispatchers.IO) {
-            val client = getOrCreateClient(profile)
-
             try {
+                val client = getOrCreateClient(profile)
                 when (val connectionResult = client.awaitConnected(profile, connectionTimeoutMillis)) {
                     is OperationResult.Failure -> {
                         closeConnection(profile.id)
@@ -259,6 +260,7 @@ class CuratorZNodeRepository(
             clients.getOrPut(profile.id) {
                 createAsyncCuratorClient(
                     profile = profile,
+                    credentialRepository = credentialRepository,
                     connectionTimeoutMillis = connectionTimeoutMillis,
                     sessionTimeoutMillis = sessionTimeoutMillis,
                 )

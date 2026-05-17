@@ -18,6 +18,10 @@ class LocalConnectionProfileRepositoryTest {
                 name = "Local",
                 connectionString = "localhost:2181",
                 chroot = ZNodePath.requireValid("/app"),
+                security = ConnectionSecurity.Digest(
+                    username = "app",
+                    credentialRef = "zk:digest:app@localhost:2181",
+                ),
                 sshTunnel = SshTunnelConfig(
                     host = "bastion.example.com",
                     port = 2222,

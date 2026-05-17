@@ -97,6 +97,7 @@ private data class ConnectionProfileRecord(
     val name: String,
     val connectionString: String,
     val chroot: String? = null,
+    val security: ConnectionSecurityRecord = ConnectionSecurityRecord(),
     val sshTunnel: SshTunnelRecord? = null,
     val mode: String = ConnectionMode.ReadOnly.name,
     val tags: List<String> = emptyList(),
@@ -117,7 +118,7 @@ private data class ConnectionProfileRecord(
                 name = name,
                 connectionString = connectionString,
                 chroot = parsedChroot,
-                security = ConnectionSecurity.None,
+                security = security.toDomain(),
                 sshTunnel = sshTunnel?.toDomain(),
                 mode = parsedMode,
                 tags = tags.toSet(),
@@ -134,10 +135,50 @@ private data class ConnectionProfileRecord(
                 name = profile.name,
                 connectionString = profile.connectionString,
                 chroot = profile.chroot?.value,
+                security = ConnectionSecurityRecord.fromDomain(profile.security),
                 sshTunnel = profile.sshTunnel?.let(SshTunnelRecord::fromDomain),
                 mode = profile.mode.name,
                 tags = profile.tags.sorted(),
             )
+    }
+}
+
+@Serializable
+private data class ConnectionSecurityRecord(
+    val type: String = "None",
+    val username: String? = null,
+    val credentialRef: String? = null,
+    val principal: String? = null,
+) {
+    fun toDomain(): ConnectionSecurity =
+        when (type) {
+            "Digest" -> username?.takeIf { it.isNotBlank() }?.let { user ->
+                credentialRef?.takeIf { it.isNotBlank() }?.let { ref ->
+                    ConnectionSecurity.Digest(username = user, credentialRef = ref)
+                }
+            } ?: ConnectionSecurity.None
+
+            "Sasl" -> principal?.takeIf { it.isNotBlank() }?.let(ConnectionSecurity::Sasl)
+                ?: ConnectionSecurity.None
+
+            else -> ConnectionSecurity.None
+        }
+
+    companion object {
+        fun fromDomain(security: ConnectionSecurity): ConnectionSecurityRecord =
+            when (security) {
+                ConnectionSecurity.None -> ConnectionSecurityRecord()
+                is ConnectionSecurity.Digest -> ConnectionSecurityRecord(
+                    type = "Digest",
+                    username = security.username,
+                    credentialRef = security.credentialRef,
+                )
+
+                is ConnectionSecurity.Sasl -> ConnectionSecurityRecord(
+                    type = "Sasl",
+                    principal = security.principal,
+                )
+            }
     }
 }
 

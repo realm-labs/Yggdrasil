@@ -5,7 +5,7 @@ import io.github.realmlabs.yggdrasil.domain.repository.*
 class YggdrasilServices(
     val appSettingsRepository: AppSettingsRepository,
     val connectionProfileRepository: ConnectionProfileRepository,
-    val sshCredentialRepository: SshCredentialRepository,
+    val credentialRepository: CredentialRepository,
     val zooKeeperConnectionTester: ZooKeeperConnectionTester,
     val zNodeRepository: ZNodeRepository,
 )

@@ -13,7 +13,7 @@ import kotlin.random.Random
 class YggdrasilStateHolder(
     private val appSettingsRepository: AppSettingsRepository? = null,
     private val connectionProfileRepository: ConnectionProfileRepository? = null,
-    private val sshCredentialRepository: SshCredentialRepository? = null,
+    private val credentialRepository: CredentialRepository? = null,
     private val zooKeeperConnectionTester: ZooKeeperConnectionTester? = null,
     private val zNodeRepository: ZNodeRepository? = null,
     initialState: AppState = AppState(),
@@ -120,7 +120,7 @@ class YggdrasilStateHolder(
             }
         }
 
-        when (val result = saveSshSecretIfNeeded(profile, draft)) {
+        when (val result = saveConnectionSecretsIfNeeded(profile, draft)) {
             is OperationResult.Success -> Unit
             is OperationResult.Failure -> {
                 reportError(result.error)
@@ -166,7 +166,6 @@ class YggdrasilStateHolder(
         val existing = state.connections.firstOrNull { it.id == connectionId } ?: return
         val profile = when (val result = draft.toProfile(connectionId)) {
             is OperationResult.Success -> result.value.copy(
-                security = existing.security,
                 tags = existing.tags,
             )
 
@@ -176,7 +175,7 @@ class YggdrasilStateHolder(
             }
         }
 
-        when (val result = saveSshSecretIfNeeded(profile, draft)) {
+        when (val result = saveConnectionSecretsIfNeeded(profile, draft)) {
             is OperationResult.Success -> Unit
             is OperationResult.Failure -> {
                 reportError(result.error)
@@ -213,7 +212,7 @@ class YggdrasilStateHolder(
                 if (isActive) {
                     selectPath(ZNodePath.Root)
                 }
-                deleteStaleSshCredential(existing, profile)
+                deleteStaleCredentials(existing, profile)
             }
 
             is OperationResult.Failure -> reportError(result.error)
@@ -227,7 +226,7 @@ class YggdrasilStateHolder(
         when (val result = repository.deleteProfile(connectionId)) {
             is OperationResult.Success -> {
                 zNodeRepository?.closeConnection(connectionId)
-                deleteSshCredential(connection.sshTunnel?.credentialRef)
+                deleteCredentials(connection.credentialRefs())
                 state = state.copy(
                     connections = state.connections.filterNot { it.id == connectionId },
                     activeConnectionId = state.activeConnectionId?.takeIf { it != connectionId },
@@ -254,33 +253,54 @@ class YggdrasilStateHolder(
         }
     }
 
-    private suspend fun saveSshSecretIfNeeded(
+    private suspend fun saveConnectionSecretsIfNeeded(
         profile: ConnectionProfile,
         draft: ConnectionProfileDraft,
     ): OperationResult<Unit> {
-        val credentialRef = profile.sshTunnel?.credentialRef ?: return OperationResult.Success(Unit)
-        val secret = draft.sshSecret.takeIf { it.isNotBlank() } ?: return OperationResult.Success(Unit)
-        val repository = sshCredentialRepository ?: return OperationResult.Failure(
-            AppError.Storage("SSH credential storage is not available."),
+        val credentialsToSave = buildList {
+            val sshCredentialRef = profile.sshTunnel?.credentialRef
+            if (sshCredentialRef != null && draft.sshSecret.isNotBlank()) {
+                add(sshCredentialRef to draft.sshSecret)
+            }
+
+            val digestCredentialRef = (profile.security as? ConnectionSecurity.Digest)?.credentialRef
+            if (digestCredentialRef != null && draft.zkDigestPassword.isNotBlank()) {
+                add(digestCredentialRef to draft.zkDigestPassword)
+            }
+        }
+        if (credentialsToSave.isEmpty()) return OperationResult.Success(Unit)
+
+        val repository = credentialRepository ?: return OperationResult.Failure(
+            AppError.Storage("Credential storage is not available."),
         )
-        return repository.saveCredential(credentialRef, secret)
+        credentialsToSave.forEach { (ref, secret) ->
+            when (val result = repository.saveCredential(ref, secret)) {
+                is OperationResult.Success -> Unit
+                is OperationResult.Failure -> return result
+            }
+        }
+
+        return OperationResult.Success(Unit)
     }
 
-    private suspend fun deleteStaleSshCredential(
+    private suspend fun deleteStaleCredentials(
         previous: ConnectionProfile,
         next: ConnectionProfile,
     ) {
-        val previousRef = previous.sshTunnel?.credentialRef
-        val nextRef = next.sshTunnel?.credentialRef
-        if (previousRef != null && previousRef != nextRef) {
-            deleteSshCredential(previousRef)
+        deleteCredentials(previous.credentialRefs() - next.credentialRefs().toSet())
+    }
+
+    private suspend fun deleteCredentials(refs: Collection<String>) {
+        refs.forEach { ref ->
+            credentialRepository?.deleteCredential(ref)
         }
     }
 
-    private suspend fun deleteSshCredential(ref: String?) {
-        val credentialRef = ref ?: return
-        sshCredentialRepository?.deleteCredential(credentialRef)
-    }
+    private fun ConnectionProfile.credentialRefs(): List<String> =
+        listOfNotNull(
+            sshTunnel?.credentialRef,
+            (security as? ConnectionSecurity.Digest)?.credentialRef,
+        )
 
     suspend fun testConnection(connectionId: ConnectionId) {
         val tester = zooKeeperConnectionTester ?: return

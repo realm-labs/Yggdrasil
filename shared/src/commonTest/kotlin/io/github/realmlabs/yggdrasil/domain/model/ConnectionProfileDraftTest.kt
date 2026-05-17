@@ -80,6 +80,62 @@ class ConnectionProfileDraftTest {
     }
 
     @Test
+    fun createsProfileWithDigestAuthReference() {
+        val result = ConnectionProfileDraft(
+            name = "Secure",
+            connectionString = "zk.internal:2181",
+            zkDigestAuthEnabled = true,
+            zkDigestUsername = "app",
+            zkDigestPassword = "secret",
+        ).toProfile(ConnectionId("secure"))
+
+        val profile = assertIs<OperationResult.Success<ConnectionProfile>>(result).value
+        val security = assertIs<ConnectionSecurity.Digest>(profile.security)
+        assertEquals("app", security.username)
+        assertEquals("zk:digest:app@zk.internal:2181", security.credentialRef)
+    }
+
+    @Test
+    fun createsProfileWithSavedDigestAuthReference() {
+        val result = ConnectionProfileDraft(
+            name = "Secure",
+            connectionString = "zk.internal:2181",
+            zkDigestAuthEnabled = true,
+            zkDigestUsername = "app",
+            zkDigestCredentialRef = "zk:digest:app@zk.internal:2181",
+        ).toProfile(ConnectionId("secure"))
+
+        val profile = assertIs<OperationResult.Success<ConnectionProfile>>(result).value
+        val security = assertIs<ConnectionSecurity.Digest>(profile.security)
+        assertEquals("app", security.username)
+        assertEquals("zk:digest:app@zk.internal:2181", security.credentialRef)
+    }
+
+    @Test
+    fun rejectsDigestAuthWithoutUsername() {
+        val result = ConnectionProfileDraft(
+            name = "Secure",
+            connectionString = "zk.internal:2181",
+            zkDigestAuthEnabled = true,
+            zkDigestPassword = "secret",
+        ).toProfile(ConnectionId("secure"))
+
+        assertIs<OperationResult.Failure>(result)
+    }
+
+    @Test
+    fun rejectsDigestAuthWithoutPasswordOrSavedReference() {
+        val result = ConnectionProfileDraft(
+            name = "Secure",
+            connectionString = "zk.internal:2181",
+            zkDigestAuthEnabled = true,
+            zkDigestUsername = "app",
+        ).toProfile(ConnectionId("secure"))
+
+        assertIs<OperationResult.Failure>(result)
+    }
+
+    @Test
     fun rejectsIncompleteSshTunnel() {
         val result = ConnectionProfileDraft(
             name = "Remote",

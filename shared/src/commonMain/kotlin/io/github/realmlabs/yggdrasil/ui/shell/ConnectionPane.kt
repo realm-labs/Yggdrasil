@@ -3,6 +3,8 @@ package io.github.realmlabs.yggdrasil.ui.shell
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import io.github.realmlabs.yggdrasil.application.state.AppState
 import io.github.realmlabs.yggdrasil.application.state.ConnectionRuntimeStatus
 import io.github.realmlabs.yggdrasil.domain.model.*
+import io.github.realmlabs.yggdrasil.platform.chooseFilePath
 import org.jetbrains.compose.resources.stringResource
 import yggdrasil.shared.generated.resources.*
 
@@ -294,6 +297,14 @@ fun ConnectionDialog(
     var connectionString by remember(profile?.id) { mutableStateOf(profile?.connectionString.orEmpty()) }
     var chroot by remember(profile?.id) { mutableStateOf(profile?.chroot?.value.orEmpty()) }
     var readWrite by remember(profile?.id) { mutableStateOf(profile?.mode == ConnectionMode.ReadWrite) }
+    var zkDigestAuthEnabled by remember(profile?.id) { mutableStateOf(profile?.security is ConnectionSecurity.Digest) }
+    var zkDigestUsername by remember(profile?.id) {
+        mutableStateOf((profile?.security as? ConnectionSecurity.Digest)?.username.orEmpty())
+    }
+    var zkDigestCredentialRef by remember(profile?.id) {
+        mutableStateOf((profile?.security as? ConnectionSecurity.Digest)?.credentialRef)
+    }
+    var zkDigestPassword by remember(profile?.id) { mutableStateOf("") }
     var sshTunnelEnabled by remember(profile?.id) { mutableStateOf(profile?.sshTunnel != null) }
     var sshHost by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.host.orEmpty()) }
     var sshPort by remember(profile?.id) { mutableStateOf(profile?.sshTunnel?.port?.toString() ?: "22") }
@@ -313,11 +324,17 @@ fun ConnectionDialog(
     val sshPortInvalid = stringResource(strings.error_ssh_port_invalid)
     val sshPasswordRequired = stringResource(strings.error_ssh_password_required)
     val sshIdentityFileRequired = stringResource(strings.error_ssh_identity_file_required)
+    val zkDigestUsernameRequired = stringResource(strings.error_zk_digest_username_required)
+    val zkDigestPasswordRequired = stringResource(strings.error_zk_digest_password_required)
+    val identityBrowseLabel = stringResource(strings.connection_identity_browse)
+    val identityPickerTitle = stringResource(strings.connection_identity_picker_title)
     fun validationErrorMessage(error: AppError): String =
         when (error.message) {
             "Connection name is required." -> connectionNameRequired
             "ZooKeeper connection string is required." -> zkConnectionRequired
             "Connection profile is not valid." -> connectionProfileInvalid
+            "ZooKeeper digest username is required." -> zkDigestUsernameRequired
+            "ZooKeeper digest password is required." -> zkDigestPasswordRequired
             "SSH host is required." -> sshHostRequired
             "SSH username is required." -> sshUsernameRequired
             "SSH port must be between 1 and 65535." -> sshPortInvalid
@@ -377,6 +394,60 @@ fun ConnectionDialog(
                         selected = readWrite,
                         onClick = { readWrite = true },
                         modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = zkDigestAuthEnabled,
+                        onClick = {
+                            val next = !zkDigestAuthEnabled
+                            zkDigestAuthEnabled = next
+                            if (!next) {
+                                zkDigestCredentialRef = null
+                                zkDigestPassword = ""
+                            }
+                        },
+                        label = { Text(stringResource(strings.connection_zk_digest_auth)) },
+                    )
+                    Text(
+                        text = stringResource(strings.connection_zk_digest_description),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (zkDigestAuthEnabled) {
+                    TextField(
+                        value = zkDigestUsername,
+                        onValueChange = {
+                            if (it != zkDigestUsername) {
+                                zkDigestCredentialRef = null
+                            }
+                            zkDigestUsername = it
+                        },
+                        label = { Text(stringResource(strings.connection_zk_digest_username)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextField(
+                        value = zkDigestPassword,
+                        onValueChange = { zkDigestPassword = it },
+                        label = { Text(stringResource(strings.connection_zk_digest_password)) },
+                        placeholder = {
+                            Text(
+                                if (zkDigestCredentialRef != null) {
+                                    stringResource(strings.connection_ssh_keep_saved_secret)
+                                } else {
+                                    stringResource(strings.connection_zk_digest_password_placeholder)
+                                },
+                            )
+                        },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 Row(
@@ -449,6 +520,24 @@ fun ConnectionDialog(
                             placeholder = { Text(stringResource(strings.connection_identity_placeholder)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        chooseFilePath(
+                                            title = identityPickerTitle,
+                                            currentPath = sshIdentityFile,
+                                        )?.let { selectedPath ->
+                                            sshIdentityFile = selectedPath
+                                        }
+                                    },
+                                    modifier = Modifier.semantics { contentDescription = identityBrowseLabel },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.FolderOpen,
+                                        contentDescription = null,
+                                    )
+                                }
+                            },
                         )
                         TextField(
                             value = sshSecret,
@@ -504,6 +593,10 @@ fun ConnectionDialog(
                         connectionString = connectionString,
                         chroot = chroot,
                         mode = if (readWrite) ConnectionMode.ReadWrite else ConnectionMode.ReadOnly,
+                        zkDigestAuthEnabled = zkDigestAuthEnabled,
+                        zkDigestUsername = zkDigestUsername,
+                        zkDigestCredentialRef = zkDigestCredentialRef,
+                        zkDigestPassword = zkDigestPassword,
                         sshTunnelEnabled = sshTunnelEnabled,
                         sshHost = sshHost,
                         sshPort = sshPort,

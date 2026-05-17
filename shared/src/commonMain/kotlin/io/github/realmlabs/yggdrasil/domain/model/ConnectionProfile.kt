@@ -27,6 +27,10 @@ data class ConnectionProfileDraft(
     val connectionString: String = "",
     val chroot: String = "",
     val mode: ConnectionMode = ConnectionMode.ReadOnly,
+    val zkDigestAuthEnabled: Boolean = false,
+    val zkDigestUsername: String = "",
+    val zkDigestCredentialRef: String? = null,
+    val zkDigestPassword: String = "",
     val sshTunnelEnabled: Boolean = false,
     val sshHost: String = "",
     val sshPort: String = "22",
@@ -62,6 +66,10 @@ data class ConnectionProfileDraft(
             is OperationResult.Success -> parsedSshTunnel.value
             is OperationResult.Failure -> return parsedSshTunnel
         }
+        val security = when (val result = parseSecurity(trimmedConnectionString)) {
+            is OperationResult.Success -> result.value
+            is OperationResult.Failure -> return result
+        }
 
         return try {
             OperationResult.Success(
@@ -70,6 +78,7 @@ data class ConnectionProfileDraft(
                     name = trimmedName,
                     connectionString = trimmedConnectionString,
                     chroot = parsedChroot,
+                    security = security,
                     sshTunnel = sshTunnel,
                     mode = mode,
                 ),
@@ -78,6 +87,29 @@ data class ConnectionProfileDraft(
             OperationResult.Failure(
                 AppError.Validation(
                     message = exception.message ?: "Connection profile is not valid.",
+                ),
+            )
+        }
+    }
+
+    private fun parseSecurity(connectionString: String): OperationResult<ConnectionSecurity> {
+        if (!zkDigestAuthEnabled) return OperationResult.Success(ConnectionSecurity.None)
+
+        val trimmedUsername = zkDigestUsername.trim()
+        val trimmedPassword = zkDigestPassword.trim()
+        val credentialRef = zkDigestCredentialRef?.takeIf { it.isNotBlank() }
+            ?: "zk:digest:${trimmedUsername}@${connectionString}"
+
+        return when {
+            trimmedUsername.isBlank() -> OperationResult.Failure(AppError.Validation("ZooKeeper digest username is required."))
+            zkDigestCredentialRef.isNullOrBlank() && trimmedPassword.isBlank() -> {
+                OperationResult.Failure(AppError.Validation("ZooKeeper digest password is required."))
+            }
+
+            else -> OperationResult.Success(
+                ConnectionSecurity.Digest(
+                    username = trimmedUsername,
+                    credentialRef = credentialRef,
                 ),
             )
         }

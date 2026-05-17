@@ -66,6 +66,8 @@ internal fun AppError.localized(): String {
         message == "Connection name is required." -> stringResource(strings.error_connection_name_required)
         message == "ZooKeeper connection string is required." -> stringResource(strings.error_zk_connection_required)
         message == "Connection profile is not valid." -> stringResource(strings.error_connection_profile_invalid)
+        message == "ZooKeeper digest username is required." -> stringResource(strings.error_zk_digest_username_required)
+        message == "ZooKeeper digest password is required." -> stringResource(strings.error_zk_digest_password_required)
         message == "SSH host is required." -> stringResource(strings.error_ssh_host_required)
         message == "SSH username is required." -> stringResource(strings.error_ssh_username_required)
         message == "SSH port must be between 1 and 65535." -> stringResource(strings.error_ssh_port_invalid)
@@ -73,6 +75,14 @@ internal fun AppError.localized(): String {
         message == "SSH identity file is required." -> stringResource(strings.error_ssh_identity_file_required)
         message == "SSH credential storage is not available." -> {
             stringResource(strings.error_ssh_credential_storage_unavailable)
+        }
+        message == "Credential storage is not available." -> stringResource(strings.error_credential_storage_unavailable)
+        message == "No supported secure credential store is available." -> {
+            stringResource(strings.error_credential_storage_unsupported)
+        }
+
+        message == "Linux credential storage requires secret-tool and a running Secret Service." -> {
+            stringResource(strings.error_linux_secret_service_unavailable)
         }
         message.startsWith("Invalid ZooKeeper path: ") -> {
             stringResource(strings.error_invalid_zk_path, message.removePrefix("Invalid ZooKeeper path: "))

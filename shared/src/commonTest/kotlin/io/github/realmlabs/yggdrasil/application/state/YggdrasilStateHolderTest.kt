@@ -2,7 +2,7 @@ package io.github.realmlabs.yggdrasil.application.state
 
 import io.github.realmlabs.yggdrasil.domain.model.*
 import io.github.realmlabs.yggdrasil.domain.repository.ConnectionProfileRepository
-import io.github.realmlabs.yggdrasil.domain.repository.SshCredentialRepository
+import io.github.realmlabs.yggdrasil.domain.repository.CredentialRepository
 import io.github.realmlabs.yggdrasil.domain.repository.ZNodeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -141,10 +141,10 @@ class YggdrasilStateHolderTest {
     @Test
     fun createConnectionStoresSshSecretInCredentialRepository() {
         val profileRepository = FakeConnectionProfileRepository()
-        val credentialRepository = FakeSshCredentialRepository()
+        val credentialRepository = FakeCredentialRepository()
         val holder = YggdrasilStateHolder(
             connectionProfileRepository = profileRepository,
-            sshCredentialRepository = credentialRepository,
+            credentialRepository = credentialRepository,
         )
 
         runBlocking {
@@ -164,6 +164,33 @@ class YggdrasilStateHolderTest {
         val savedProfile = assertNotNull(profileRepository.savedProfile)
         val credentialRef = assertNotNull(savedProfile.sshTunnel?.credentialRef)
         assertEquals("secret", credentialRepository.savedCredentials[credentialRef])
+        assertTrue(!savedProfile.toString().contains("secret"))
+    }
+
+    @Test
+    fun createConnectionStoresDigestSecretInCredentialRepository() {
+        val profileRepository = FakeConnectionProfileRepository()
+        val credentialRepository = FakeCredentialRepository()
+        val holder = YggdrasilStateHolder(
+            connectionProfileRepository = profileRepository,
+            credentialRepository = credentialRepository,
+        )
+
+        runBlocking {
+            holder.createConnection(
+                ConnectionProfileDraft(
+                    name = "Secure",
+                    connectionString = "zk.internal:2181",
+                    zkDigestAuthEnabled = true,
+                    zkDigestUsername = "app",
+                    zkDigestPassword = "secret",
+                ),
+            )
+        }
+
+        val savedProfile = assertNotNull(profileRepository.savedProfile)
+        val security = assertIs<ConnectionSecurity.Digest>(savedProfile.security)
+        assertEquals("secret", credentialRepository.savedCredentials[security.credentialRef])
         assertTrue(!savedProfile.toString().contains("secret"))
     }
 
@@ -443,13 +470,17 @@ class YggdrasilStateHolderTest {
             OperationResult.Success(Unit)
     }
 
-    private class FakeSshCredentialRepository : SshCredentialRepository {
+    private class FakeCredentialRepository : CredentialRepository {
         val savedCredentials = mutableMapOf<String, String>()
 
         override suspend fun saveCredential(ref: String, secret: String): OperationResult<Unit> {
             savedCredentials[ref] = secret
             return OperationResult.Success(Unit)
         }
+
+        override suspend fun readCredential(ref: String): OperationResult<String> =
+            savedCredentials[ref]?.let { OperationResult.Success(it) }
+                ?: OperationResult.Failure(AppError.Storage("Credential not found."))
 
         override suspend fun deleteCredential(ref: String): OperationResult<Unit> {
             savedCredentials.remove(ref)

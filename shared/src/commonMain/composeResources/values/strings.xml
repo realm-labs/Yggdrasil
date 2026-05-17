@@ -52,6 +52,11 @@
     <string name="connection_name">Name</string>
     <string name="connection_string">Connection string</string>
     <string name="connection_chroot">Chroot</string>
+    <string name="connection_zk_digest_auth">ZooKeeper digest auth</string>
+    <string name="connection_zk_digest_description">Authenticate to protected znodes with digest credentials</string>
+    <string name="connection_zk_digest_username">Digest username</string>
+    <string name="connection_zk_digest_password">Digest password</string>
+    <string name="connection_zk_digest_password_placeholder">Stored in the system credential store</string>
     <string name="connection_ssh_tunnel">SSH tunnel</string>
     <string name="connection_ssh_tunnel_suffix"> · SSH tunnel</string>
     <string name="connection_ssh_description">Forward ZooKeeper through an SSH bastion</string>
@@ -62,10 +67,13 @@
     <string name="connection_ssh_auth_password">Password</string>
     <string name="connection_identity_file">Identity file</string>
     <string name="connection_identity_placeholder">Required private key path</string>
+    <string name="connection_identity_browse">Browse identity file</string>
+    <string name="connection_identity_picker_title">Select SSH identity file</string>
     <string name="connection_ssh_password">SSH password</string>
-    <string name="connection_ssh_password_placeholder">Stored in macOS Keychain</string>
+    <string name="connection_ssh_password_placeholder">Stored in the system credential store</string>
     <string name="connection_ssh_passphrase">Key passphrase</string>
-    <string name="connection_ssh_passphrase_placeholder">Stored in macOS Keychain for encrypted keys</string>
+    <string name="connection_ssh_passphrase_placeholder">Stored in the system credential store for encrypted keys
+    </string>
     <string name="connection_ssh_keep_saved_secret">Leave blank to keep the saved secret</string>
 
     <string name="tree_title">Znode Explorer</string>
@@ -324,6 +332,13 @@
     <string name="error_ssh_password_required">SSH password is required.</string>
     <string name="error_ssh_identity_file_required">SSH identity file is required.</string>
     <string name="error_ssh_credential_storage_unavailable">SSH credential storage is not available.</string>
+    <string name="error_zk_digest_username_required">ZooKeeper digest username is required.</string>
+    <string name="error_zk_digest_password_required">ZooKeeper digest password is required.</string>
+    <string name="error_credential_storage_unavailable">Credential storage is not available.</string>
+    <string name="error_credential_storage_unsupported">No supported secure credential store is available.</string>
+    <string name="error_linux_secret_service_unavailable">Linux credential storage requires secret-tool and a running
+        Secret Service.
+    </string>
     <string name="error_invalid_zk_path">Invalid ZooKeeper path: %1$s</string>
     <string name="error_command_empty">Command cannot be empty.</string>
     <string name="error_unsupported_zk_command">Unsupported zk command: %1$s. Type help for supported commands.</string>
