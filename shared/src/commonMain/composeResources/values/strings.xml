@@ -183,9 +183,7 @@
     <string name="settings_theme">Theme</string>
     <string name="settings_show_timestamps">Show command timestamps</string>
     <string name="settings_destructive_operations">Destructive operations</string>
-    <string name="settings_require_delete_confirmation">Require full-path confirmation for dangerous deletes</string>
-    <string name="settings_delete_confirmation_on">Recursive and multi-node deletes require typing the full root path before execution.</string>
-    <string name="settings_delete_confirmation_off">Delete preview is still required, but full-path confirmation is skipped.</string>
+    <string name="settings_delete_preview_required">Deletes show a preview before execution.</string>
     <string name="settings_delete_command_desc">Delete a znode</string>
     <string name="settings_rmr_command_desc">Recursively delete a znode and its children</string>
     <string name="settings_set_acl_command_desc">Modify ACL permissions</string>
@@ -203,10 +201,8 @@
     <string name="dialog_mode_ephemeral_seq">Ephemeral seq</string>
     <string name="dialog_delete_znode">Delete znode</string>
     <string name="dialog_recursive_delete">Recursive delete</string>
-    <string name="dialog_delete_preview_hint">Preview the delete before confirming.</string>
     <string name="dialog_delete_preview_loading">Loading delete preview for %1$s</string>
     <string name="dialog_delete_preview_count">%1$d node(s) will be deleted.</string>
-    <string name="dialog_type_path_to_confirm">Type %1$s to confirm</string>
     <string name="dialog_edit_acl">Edit ACL</string>
     <string name="dialog_world_read">World read</string>
     <string name="dialog_digest_admin">Digest admin</string>

@@ -182,9 +182,7 @@
     <string name="settings_theme">主题</string>
     <string name="settings_show_timestamps">显示命令时间戳</string>
     <string name="settings_destructive_operations">破坏性操作</string>
-    <string name="settings_require_delete_confirmation">危险删除需要完整路径确认</string>
-    <string name="settings_delete_confirmation_on">递归删除和多节点删除在执行前需要输入完整根路径。</string>
-    <string name="settings_delete_confirmation_off">仍会要求删除预览，但跳过完整路径确认。</string>
+    <string name="settings_delete_preview_required">删除前会直接展示预览内容。</string>
     <string name="settings_delete_command_desc">删除一个 znode</string>
     <string name="settings_rmr_command_desc">递归删除一个 znode 及其子节点</string>
     <string name="settings_set_acl_command_desc">修改 ACL 权限</string>
@@ -202,10 +200,8 @@
     <string name="dialog_mode_ephemeral_seq">临时顺序</string>
     <string name="dialog_delete_znode">删除 znode</string>
     <string name="dialog_recursive_delete">递归删除</string>
-    <string name="dialog_delete_preview_hint">确认前先预览删除内容。</string>
     <string name="dialog_delete_preview_loading">正在加载 %1$s 的删除预览</string>
     <string name="dialog_delete_preview_count">将删除 %1$d 个节点。</string>
-    <string name="dialog_type_path_to_confirm">输入 %1$s 确认</string>
     <string name="dialog_edit_acl">编辑 ACL</string>
     <string name="dialog_world_read">world 只读</string>
     <string name="dialog_digest_admin">digest 管理员</string>

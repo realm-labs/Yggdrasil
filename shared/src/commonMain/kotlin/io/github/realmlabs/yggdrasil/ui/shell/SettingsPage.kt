@@ -74,7 +74,7 @@ fun SettingsPage(
                         SettingsSection.Appearance -> AppearanceSettings(settings, onSettingsChange)
                         SettingsSection.Explorer -> ExplorerSettings(settings, onSettingsChange)
                         SettingsSection.Terminal -> TerminalSettings(settings, onSettingsChange)
-                        SettingsSection.Safety -> SafetySettings(settings, onSettingsChange)
+                        SettingsSection.Safety -> SafetySettings()
                         SettingsSection.Shortcuts -> ShortcutsSettings()
                     }
                 }
@@ -210,15 +210,10 @@ private fun TerminalSettings(settings: AppSettings, onSettingsChange: (AppSettin
 }
 
 @Composable
-private fun SafetySettings(settings: AppSettings, onSettingsChange: (AppSettings) -> Unit) {
+private fun SafetySettings() {
     val strings = Res.string
     SettingsCard(title = stringResource(strings.settings_destructive_operations)) {
-        SettingSwitchRow(
-            label = stringResource(strings.settings_require_delete_confirmation),
-            checked = settings.requireDangerousConfirmation,
-            onCheckedChange = { onSettingsChange(settings.copy(requireDangerousConfirmation = it)) },
-        )
-        DangerousCommandBox(settings.requireDangerousConfirmation)
+        DangerousCommandBox()
     }
 }
 
@@ -538,7 +533,7 @@ private fun TerminalPreview(settings: AppSettings) {
 }
 
 @Composable
-private fun DangerousCommandBox(requireConfirmation: Boolean) {
+private fun DangerousCommandBox() {
     val strings = Res.string
     Column(
         modifier = Modifier
@@ -549,11 +544,7 @@ private fun DangerousCommandBox(requireConfirmation: Boolean) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            if (requireConfirmation) {
-                stringResource(strings.settings_delete_confirmation_on)
-            } else {
-                stringResource(strings.settings_delete_confirmation_off)
-            },
+            stringResource(strings.settings_delete_preview_required),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

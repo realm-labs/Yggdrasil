@@ -104,10 +104,7 @@ data class DeleteZNodePreview(
     val rootPath: ZNodePath,
     val recursive: Boolean,
     val paths: List<ZNodePath>,
-) {
-    val requiresFullPathConfirmation: Boolean
-        get() = recursive || rootPath == ZNodePath.Root || paths.size > 1
-}
+)
 
 data class UpdateZNodeAclRequest(
     val path: ZNodePath,

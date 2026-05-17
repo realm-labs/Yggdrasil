@@ -526,14 +526,10 @@ class YggdrasilStateHolder(
         }
     }
 
-    suspend fun deletePreviewedNode(confirmation: String, requireConfirmation: Boolean = true) {
+    suspend fun deletePreviewedNode() {
         val repository = zNodeRepository ?: return
         val profile = requireWritableProfile() ?: return
         val preview = (state.deletePreview as? DeletePreviewState.Loaded)?.preview ?: return
-        if (requireConfirmation && preview.requiresFullPathConfirmation && confirmation != preview.rootPath.value) {
-            reportError(AppError.Validation("Type ${preview.rootPath} to confirm deletion."))
-            return
-        }
 
         state = state.copy(statusMessage = StatusMessage.DeletingNode(preview.rootPath))
         val request = DeleteZNodeRequest(

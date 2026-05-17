@@ -305,7 +305,7 @@ class YggdrasilStateHolderTest {
     }
 
     @Test
-    fun deletePreviewRequiresConfirmationForRecursiveDelete() {
+    fun deletePreviewCanSkipConfirmationForRecursiveDelete() {
         val connection = ConnectionProfile(
             id = ConnectionId("local"),
             name = "Local",
@@ -328,13 +328,7 @@ class YggdrasilStateHolderTest {
 
         runBlocking {
             holder.previewDeleteSelectedNode(recursive = true)
-            holder.deletePreviewedNode(confirmation = "wrong")
-        }
-
-        assertNull(repository.deleteRequest)
-
-        runBlocking {
-            holder.deletePreviewedNode(confirmation = path.value)
+            holder.deletePreviewedNode()
         }
 
         assertEquals(path, repository.deleteRequest?.path)

@@ -120,18 +120,23 @@ fun CreateNodeDialog(
 @Composable
 fun DeleteNodeDialog(
     state: AppState,
-    requireDangerousConfirmation: Boolean,
     onPreview: (Boolean) -> Unit,
-    onDelete: (String) -> Unit,
+    onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val strings = Res.string
     val selectedPath = state.selectedPath
     var recursive by remember(selectedPath) { mutableStateOf(false) }
-    var confirmation by remember(selectedPath) { mutableStateOf("") }
     val preview = state.deletePreview as? DeletePreviewState.Loaded
-    val requiresConfirmation = requireDangerousConfirmation && preview?.preview?.requiresFullPathConfirmation == true
-    val canDelete = preview != null && (!requiresConfirmation || confirmation == preview.preview.rootPath.value)
+    val canDelete = preview?.let {
+        it.preview.rootPath == selectedPath && it.preview.recursive == recursive
+    } == true
+
+    LaunchedEffect(selectedPath, recursive) {
+        if (selectedPath != null) {
+            onPreview(recursive)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -154,15 +159,9 @@ fun DeleteNodeDialog(
                     )
                     Text(stringResource(strings.dialog_recursive_delete))
                 }
-                OutlinedButton(
-                    onClick = { onPreview(recursive) },
-                    enabled = selectedPath != null,
-                ) {
-                    Text(stringResource(strings.common_preview))
-                }
                 when (val previewState = state.deletePreview) {
                     DeletePreviewState.None -> Text(
-                        text = stringResource(strings.dialog_delete_preview_hint),
+                        text = stringResource(strings.dialog_delete_preview_loading, selectedPath?.value ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -201,29 +200,13 @@ fun DeleteNodeDialog(
                                 )
                             }
                         }
-                        if (requireDangerousConfirmation && previewState.preview.requiresFullPathConfirmation) {
-                            TextField(
-                                value = confirmation,
-                                onValueChange = { confirmation = it },
-                                label = {
-                                    Text(
-                                        stringResource(
-                                            strings.dialog_type_path_to_confirm,
-                                            previewState.preview.rootPath.value
-                                        )
-                                    )
-                                },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
                     }
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onDelete(confirmation) },
+                onClick = onDelete,
                 enabled = canDelete,
             ) {
                 Text(stringResource(strings.common_delete))

@@ -165,5 +165,4 @@ data class AppSettings(
     val terminalThemePreference: TerminalThemePreference = TerminalThemePreference.Auto,
     val terminalShowTimestamps: Boolean = true,
     val clearTerminalOnConnectionChange: Boolean = false,
-    val requireDangerousConfirmation: Boolean = true,
 )

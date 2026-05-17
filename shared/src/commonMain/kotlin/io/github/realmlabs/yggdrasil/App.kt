@@ -80,12 +80,9 @@ fun App() {
                 onPreviewDeleteNode = { recursive ->
                     coroutineScope.launch { stateHolder.previewDeleteSelectedNode(recursive) }
                 },
-                onDeletePreviewedNode = { confirmation ->
+                onDeletePreviewedNode = {
                     coroutineScope.launch {
-                        stateHolder.deletePreviewedNode(
-                            confirmation = confirmation,
-                            requireConfirmation = stateHolder.state.settings.requireDangerousConfirmation,
-                        )
+                        stateHolder.deletePreviewedNode()
                     }
                 },
                 onClearDeletePreview = stateHolder::clearDeletePreview,

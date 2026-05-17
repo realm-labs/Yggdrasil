@@ -40,7 +40,7 @@ fun AppShell(
     onCreateNode: (CreateZNodeRequest) -> Unit,
     onUpdateNodeData: (ByteArray, Int) -> Unit,
     onPreviewDeleteNode: (Boolean) -> Unit,
-    onDeletePreviewedNode: (String) -> Unit,
+    onDeletePreviewedNode: () -> Unit,
     onClearDeletePreview: () -> Unit,
     onUpdateAcl: (List<ZNodeAcl>, Int) -> Unit,
     onSearch: (ZNodeSearchRequest) -> Unit,
@@ -264,10 +264,9 @@ fun AppShell(
     if (showDeleteNodeDialog) {
         DeleteNodeDialog(
             state = state,
-            requireDangerousConfirmation = state.settings.requireDangerousConfirmation,
             onPreview = onPreviewDeleteNode,
-            onDelete = { confirmation ->
-                onDeletePreviewedNode(confirmation)
+            onDelete = {
+                onDeletePreviewedNode()
                 showDeleteNodeDialog = false
             },
             onDismiss = {
