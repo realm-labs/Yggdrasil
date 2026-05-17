@@ -73,6 +73,8 @@ fun AppShell(
     var treePaneWidth by remember { mutableStateOf(316.dp) }
     var inspectorPaneWidth by remember { mutableStateOf(300.dp) }
     var terminalHeight by remember { mutableStateOf(220.dp) }
+    var treeRevealRequestId by remember { mutableStateOf(0) }
+    var treeRevealRequest by remember { mutableStateOf<ZNodeTreeRevealRequest?>(null) }
     val terminalSuccessOutput = when (val cliState = state.zkCliState) {
         is ZkCliState.Loaded -> localizedZkCliOutput(cliState.result.output)
         else -> null
@@ -90,6 +92,7 @@ fun AppShell(
         if (state.settings.clearTerminalOnConnectionChange) {
             terminalEntries = emptyList()
         }
+        treeRevealRequest = null
     }
 
     LaunchedEffect(state.zkCliState, terminalSuccessOutput, terminalErrorOutput) {
@@ -119,6 +122,12 @@ fun AppShell(
 
             else -> Unit
         }
+    }
+
+    fun revealTreePath(path: ZNodePath) {
+        treeRevealRequestId += 1
+        treeRevealRequest = ZNodeTreeRevealRequest(treeRevealRequestId, path)
+        onSelectPath(path)
     }
 
     Surface(
@@ -156,7 +165,7 @@ fun AppShell(
                         ),
                     )
                 },
-                onSelectSearchResult = onSelectPath,
+                onSelectSearchResult = ::revealTreePath,
                 onSelectConnection = onSelectConnection,
             )
             Row(Modifier.weight(1f).fillMaxWidth()) {
@@ -165,6 +174,7 @@ fun AppShell(
                     onSelectPath = onSelectPath,
                     onRefreshSelectedPath = onRefreshSelectedPath,
                     onToggleFavoritePath = onToggleFavoritePath,
+                    revealRequest = treeRevealRequest,
                     modifier = Modifier.width(treePaneWidth).fillMaxHeight(),
                 )
                 ResizableDivider(
@@ -313,7 +323,7 @@ fun AppShell(
             onCompare = onCompare,
             onCancelCompare = onCancelCompare,
             onExecuteZkCli = onExecuteZkCli,
-            onSelectPath = onSelectPath,
+            onSelectPath = ::revealTreePath,
             onSelectConnection = onSelectConnection,
             onRefreshSelectedPath = onRefreshSelectedPath,
             onReconnectActiveConnection = onReconnectActiveConnection,

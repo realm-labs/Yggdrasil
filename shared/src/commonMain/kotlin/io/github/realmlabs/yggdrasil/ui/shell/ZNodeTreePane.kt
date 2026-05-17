@@ -27,12 +27,18 @@ import org.jetbrains.compose.resources.stringResource
 import yggdrasil.shared.generated.resources.*
 import kotlin.math.roundToInt
 
+data class ZNodeTreeRevealRequest(
+    val id: Int,
+    val path: ZNodePath,
+)
+
 @Composable
 fun TreePane(
     state: AppState,
     onSelectPath: (ZNodePath) -> Unit,
     onRefreshSelectedPath: () -> Unit,
     onToggleFavoritePath: (ZNodePath) -> Unit,
+    revealRequest: ZNodeTreeRevealRequest? = null,
     modifier: Modifier = Modifier,
 ) {
     val strings = Res.string
@@ -101,31 +107,22 @@ fun TreePane(
             var viewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
             var viewportHeight by remember { mutableStateOf(0) }
             var centeredPath by remember { mutableStateOf<ZNodePath?>(null) }
-            var manualSelectedPath by remember(state.activeConnectionId) { mutableStateOf<ZNodePath?>(null) }
-            var centerRequestedPath by remember(state.activeConnectionId) { mutableStateOf<ZNodePath?>(null) }
-            LaunchedEffect(state.selectedPath) {
-                centeredPath = null
-                state.selectedPath?.let { selectedPath ->
-                    expandedPaths = expandedPaths + selectedPath.ancestorPaths()
-                    centerRequestedPath = if (selectedPath == manualSelectedPath) null else selectedPath
-                    manualSelectedPath = null
-                }
-            }
+            var selectedRowCoordinates by remember { mutableStateOf<Pair<ZNodePath, LayoutCoordinates>?>(null) }
+            var revealRequestedPath by remember(state.activeConnectionId) { mutableStateOf<ZNodePath?>(null) }
 
             fun selectTreePath(path: ZNodePath) {
-                manualSelectedPath = path
                 onSelectPath(path)
             }
 
-            fun centerSelectedPath(path: ZNodePath, rowCoordinates: LayoutCoordinates) {
-                if (path != state.selectedPath || path != centerRequestedPath || centeredPath == path) return
+            fun revealSelectedPath(path: ZNodePath, rowCoordinates: LayoutCoordinates) {
+                if (path != state.selectedPath || path != revealRequestedPath || centeredPath == path) return
                 val viewport = viewportCoordinates ?: return
                 if (viewportHeight <= 0) return
                 val rowTop = viewport.localPositionOf(rowCoordinates, Offset.Zero).y
                 val rowBottom = rowTop + rowCoordinates.size.height
                 if (rowTop >= 0f && rowBottom <= viewportHeight) {
                     centeredPath = path
-                    centerRequestedPath = null
+                    revealRequestedPath = null
                     return
                 }
                 val rowCenter = rowTop + rowCoordinates.size.height / 2f
@@ -133,10 +130,40 @@ fun TreePane(
                     .roundToInt()
                     .coerceIn(0, treeScrollState.maxValue)
                 centeredPath = path
-                centerRequestedPath = null
+                revealRequestedPath = null
                 coroutineScope.launch {
                     treeScrollState.animateScrollTo(target)
                 }
+            }
+
+            fun requestReveal(path: ZNodePath) {
+                centeredPath = null
+                revealRequestedPath = path
+                selectedRowCoordinates
+                    ?.takeIf { (rowPath, _) -> rowPath == path }
+                    ?.let { (_, coordinates) -> revealSelectedPath(path, coordinates) }
+            }
+
+            fun handleSelectedPositioned(path: ZNodePath, rowCoordinates: LayoutCoordinates) {
+                selectedRowCoordinates = path to rowCoordinates
+                revealSelectedPath(path, rowCoordinates)
+            }
+
+            LaunchedEffect(state.selectedPath) {
+                state.selectedPath?.let { selectedPath ->
+                    expandedPaths = expandedPaths + selectedPath.ancestorPaths()
+                    if (revealRequestedPath != null && selectedPath != revealRequestedPath) {
+                        centeredPath = null
+                        revealRequestedPath = null
+                    }
+                }
+            }
+
+            LaunchedEffect(revealRequest?.id) {
+                val request = revealRequest ?: return@LaunchedEffect
+                filter = ""
+                expandedPaths = expandedPaths + request.path.ancestorPaths()
+                requestReveal(request.path)
             }
 
             fun togglePath(path: ZNodePath, expandable: Boolean, childrenState: ZNodeChildrenState?) {
@@ -178,7 +205,7 @@ fun TreePane(
                             childrenState = rootChildrenState,
                         )
                     },
-                    onSelectedPositioned = ::centerSelectedPath,
+                    onSelectedPositioned = ::handleSelectedPositioned,
                 )
                 TreeChildren(
                     state = state,
@@ -188,7 +215,7 @@ fun TreePane(
                     filter = filter,
                     onSelectPath = ::selectTreePath,
                     onTogglePath = ::togglePath,
-                    onSelectedPositioned = ::centerSelectedPath,
+                    onSelectedPositioned = ::handleSelectedPositioned,
                 )
             }
         }
