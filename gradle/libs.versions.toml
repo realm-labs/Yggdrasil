@@ -1,6 +1,6 @@
 [versions]
 androidx-lifecycle = "2.11.0-beta01"
-composeMultiplatform = "1.11.0"
+composeMultiplatform = "1.11.1"
 composeMaterialIcons = "1.7.3"
 curator = "5.9.0"
 junit = "4.13.2"
