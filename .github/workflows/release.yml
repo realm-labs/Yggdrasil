@@ -140,7 +140,7 @@ jobs:
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.1.0
+        uses: gradle/actions/setup-gradle@v6.2.0
 
       - name: Run build checks
         run: ./gradlew --no-daemon check -PAPP_VERSION="${{ needs.prepare-release.outputs.version }}"
@@ -185,7 +185,7 @@ jobs:
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.1.0
+        uses: gradle/actions/setup-gradle@v6.2.0
 
       - name: Install Linux packaging tools
         if: runner.os == 'Linux'
