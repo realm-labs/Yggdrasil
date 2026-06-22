@@ -1,5 +1,5 @@
 [versions]
-androidx-lifecycle = "2.11.0-beta01"
+androidx-lifecycle = "2.11.0-beta02"
 composeMultiplatform = "1.11.0"
 composeMaterialIcons = "1.7.3"
 curator = "5.9.0"
